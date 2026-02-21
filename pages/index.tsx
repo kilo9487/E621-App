@@ -1534,7 +1534,7 @@ const windowsType = {
     const [page, setPage] = useState<number>(savedData?.nowPage ?? 1);
     const [searchTags, setSearchTags] = useState<string[]>(savedData?.searchTags ?? ["yonkagor", "webm"]);
     const [searchTagsInput, setSearchTagsInput] = useState<string[]>(searchTags);
-    const [searchRating, setSearchRating] = useState<string[]>(["rating:s"]);
+    const [searchRating, setSearchRating] = useState<string[]>([]);
 
     const [postsCache, setPostsCache] = useState<PostsCache>(savedData?.pageCache ?? {});
     const [jupToPage, setJupToPage] = useState<boolean>(false);
