@@ -867,7 +867,7 @@ const EmptyAccount: ((option: EmptyAccountOption) => workSpaceType.User) = (opt:
         avatar: opt.avatar ?? {
           url: "/_SYSTEM/Images/root/avatar.png"
         },
-        passKey: opt.password, // 這東西只有我自己一個人用 絕對不會泄漏 忽略這一段
+        passKey: opt.password,
         e621: opt.e621
       },
       id: opt.id,
@@ -1960,7 +1960,7 @@ const windowsType = {
             touchArea.removeEventListener("touchend", onTouchEnd)
           }
 
-        }, [jupToPage, jupPage, setJupToPage, setPage]); // 加入必要的依賴
+        }, [jupToPage, jupPage, setJupToPage, setPage]);
 
         useEffect(() => {
           const input = inputRef.current
@@ -3663,7 +3663,7 @@ const windowsType = {
                       [
                         <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px"><path d="M378-524q16.33-21.33 44.67-34.67Q451-572 481.33-572q58 0 96 38t38 96q0 58-38 96.33-38 38.34-96 38.34-39.33 0-71.16-19-31.84-19-49.5-50-5.34-9-15.5-12.5-10.17-3.5-19.17 1.5-10.67 5-13.83 15.83-3.17 10.83 2.5 20.5 24.66 44.67 68.33 70.5t98.33 25.83q78 0 132.67-54.66Q668.67-360 668.67-438q0-78-54.67-132.67-54.67-54.66-132.67-54.66-42.66 0-78.33 17.33t-60.33 42.67v-42q0-10.34-7.17-17.5Q328.33-632 318-632t-17.83 7.17q-7.5 7.16-7.5 17.5v108q0 10.33 7.5 17.83 7.5 7.5 17.83 7.5h109.33q10.34 0 17.5-7.5Q452-489 452-499.33q0-10.34-7.17-17.5-7.16-7.17-17.5-7.17H378ZM226.67-80q-27 0-46.84-19.83Q160-119.67 160-146.67v-666.66q0-27 19.83-46.84Q199.67-880 226.67-880H533q13.33 0 25.83 5.33 12.5 5.34 21.5 14.34l200 200q9 9 14.34 21.5Q800-626.33 800-613v466.33q0 27-19.83 46.84Q760.33-80 733.33-80H226.67Zm0-66.67h506.66v-464.66l-202-202H226.67v666.66Zm0 0v-666.66V-146.67Z" /></svg>,
                         () => {
-                          const targetID = item.windowId || `${item.createAt}`; // 相容舊資料，如果有 windowId 則用它
+                          const targetID = item.windowId || `${item.createAt}`;
 
                           const pureId = targetID.replace(/^(post_search-|post-|post_get_by_id-|pool-)/, "");
 
@@ -3916,16 +3916,13 @@ const Desktop = () => {
     if (!wm) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 觸發條件：Shift + Tab
       if (e.shiftKey && e.code === "Tab") {
         e.preventDefault();
 
         if (!switcherOpen) {
-          // --- 第一次按下：初始化切換器 ---
           const allWindows = wm.getWindows();
           if (allWindows.length === 0) return;
 
-          // 1. 儲存目前的狀態
           const snapshot = new Map();
           allWindows.forEach(win => {
             const instance = wm.getWindow(win.id);
@@ -3933,20 +3930,16 @@ const Desktop = () => {
               isMinimized: instance?.isMinimized,
               isFocused: instance?.isFocused
             });
-            // 2. 全部最小化
             instance?.minimize();
           });
           originalStatesRef.current = snapshot;
 
-          // 3. 設定初始索引 (通常切換到下一個視窗)
           const nextIdx = (switcherIndex + 1) % allWindows.length;
           setSwitcherIndex(nextIdx);
           setSwitcherOpen(true);
 
-          // 4. 聚焦第一個選中的視窗
           wm.getWindow(allWindows[nextIdx].id)?.focus();
         } else {
-          // --- 已經在切換中：循環視窗 ---
           const allWindows = wm.getWindows();
           allWindows.forEach(win => {
             const instance = wm.getWindow(win.id);
@@ -3954,7 +3947,6 @@ const Desktop = () => {
           });
           const nextIdx = (switcherIndex + 1) % allWindows.length;
 
-          // 保持其他視窗最小化，聚焦當前選擇的
           wm.getWindow(allWindows[nextIdx].id)?.focus();
           setSwitcherIndex(nextIdx);
         }
@@ -3962,22 +3954,18 @@ const Desktop = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      // 當放開 Shift 鍵時，結束切換
       if (e.key === "Shift" && switcherOpen) {
         const allWindows = wm.getWindows();
         const selectedWinId = allWindows[switcherIndex]?.id;
         const snapshot = originalStatesRef.current;
 
-        // 恢復所有視窗之前的狀態
         allWindows.forEach(win => {
           const prevState = snapshot.get(win.id);
           const instance = wm.getWindow(win.id);
 
           if (win.id === selectedWinId) {
-            // 被選中的視窗：確保它是打開且聚焦的
             instance?.focus();
           } else {
-            // 其他視窗：恢復之前的縮放狀態
             if (prevState?.isMinimized) {
               instance?.minimize();
             } else {
@@ -4313,7 +4301,6 @@ const Desktop = () => {
                     "Get Post by ID",
                     <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
                     () => {
-                      // === 開發階段 (Development) ===
                       const devID = 5613429;
                       const winID = `post_get_by_id-${devID}`;
 
