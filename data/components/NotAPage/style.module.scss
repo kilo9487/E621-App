@@ -1,0 +1,370 @@
+@use "/styles/value" as *;
+
+
+#Frame {
+  $tF1: cubic-bezier(0, .62, 0, 1);
+
+  @include FullDiv();
+  @include GridFrame();
+  overflow: hidden;
+  zoom: 70%;
+
+  * {
+    user-select: none;
+    color: Color();
+    pointer-events: none;
+  }
+
+  #InnerContent {
+    @include GridFrame();
+    overflow: hidden;
+    transform: scale(1.1);
+
+    /* ================================================ */
+
+    .pointerEvent {
+      pointer-events: all;
+    }
+
+    .BG,
+    .UHD {
+      @include GridFrame();
+      overflow: hidden;
+    }
+
+    .BG {
+      .Background {
+        z-index: 0;
+      }
+
+      .AFK {
+        z-index: 5;
+      }
+
+      .BlackHole1 {
+        z-index: 15;
+      }
+
+      .Dark {
+        z-index: 20;
+      }
+    }
+
+    .UHD {
+      z-index: 100;
+
+      .Dir {
+        z-index: 40;
+      }
+
+      .Text {
+        z-index: 50;
+      }
+
+      .Back {
+        z-index: 100;
+      }
+    }
+
+    /* ================================================ */
+
+    .BG {
+      .Background {
+        @include GridFrame();
+
+        .G1 {
+          z-index: 1;
+          background: radial-gradient(circle, Color(.1) 0%, Color(.01) 65%);
+        }
+
+        .G2,
+        .G3,
+        .G4 {
+          transition: $tF1 2s;
+        }
+
+        .G2 {
+          z-index: 2;
+          $value: .3;
+          background: linear-gradient(0deg, Color($value, 0) 45%, Color($value) 50%, Color($value, 0) 55%);
+          filter: blur(50px);
+        }
+
+        .G3 {
+          z-index: 3;
+          background: radial-gradient(circle, Color() 5%, rgba(0, 0, 0, 0) 0%);
+          filter: blur(50px);
+          animation: .5s ease-in-out 0s infinite alternate HoleZoomInOut;
+        }
+
+        .G4 {
+          z-index: 4;
+          background: radial-gradient(circle, rgba(0, 0, 0, 1) 5%, rgba(0, 0, 0, 0) 0%);
+          filter: blur(5px);
+        }
+      }
+
+      .AFK {
+        * {
+          transition: none;
+        }
+
+        pointer-events: none;
+        overflow: hidden;
+        @include GridFrame();
+
+        >.Circle {
+          @include GridFrame();
+          overflow: hidden;
+          align-content: center;
+
+          >.Avatar {
+            @include GridFrame();
+
+            >.image {
+              width: 100vw;
+              height: 100vw;
+              @include BgCntr();
+              border-radius: 50%;
+            }
+          }
+
+          >.cer {
+            width: 100%;
+            aspect-ratio: 1;
+            transition: $tF1 2s;
+            @include FlexCenter();
+
+            >.zoom {
+              mask-image: radial-gradient(circle, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, .1) 100%);
+
+              >.rot {
+                >div {
+                  @include BgCntr();
+                  border: Color(1, .5) .5vw solid;
+                  clip-path: polygon(50% 0, 100% 0, 100% 50%, 50% 50%, 50% 100%, 0 100%, 0 50%, 50% 50%);
+                  border-radius: 50%;
+                  animation: linear Rotate;
+                  animation-iteration-count: infinite;
+
+                }
+              }
+            }
+          }
+        }
+      }
+
+      .Dark {
+        @include GridFrame();
+
+        .G1 {
+          z-index: 1;
+          background: radial-gradient(circle, #0000 50%, #000 100%);
+        }
+
+        .G2 {
+          z-index: 2;
+          background: radial-gradient(circle farthest-side at top, Color(.15) 0%, Color(1, 0) 100%);
+          transition: ease 5s;
+          animation: 3s ease-in-out 0s infinite alternate TopLight;
+        }
+      }
+
+      .BlackHole1 {
+        background: radial-gradient(circle, rgba(0, 0, 0, 1) 5%, rgba(0, 0, 0, 0) 0%);
+        filter: blur(10px);
+        transition: $tF1 2s;
+      }
+    }
+
+    .UHD {
+      padding: 8vh 8vw;
+
+      .Back,
+      .Dir {
+        transition: cubic-bezier(.57, .15, 0, 1) 1s;
+        overflow: hidden;
+        mask-image: linear-gradient(90deg, rgba(0, 0, 0, 1) 64%, rgba(0, 0, 0, 0) 100%);
+
+        * {
+          font-size: 50px;
+        }
+
+        span {
+          color: Color(1, .3);
+          display: flex;
+          gap: 10px;
+        }
+      }
+
+      .Back {
+        a {
+          color: Color();
+
+          &:hover {
+            text-shadow: 0 0 10px Color();
+          }
+        }
+
+        .Tips {
+          display: flex;
+          gap: 5px;
+
+          * {
+            &:first-child {
+              color: Color(1, .7);
+              margin-right: 5px;
+              transform: none;
+            }
+
+            transform: translateY(10px);
+            color: Color(1, .3);
+            font-size: 30px;
+          }
+        }
+      }
+
+      .Text {
+        padding: 4vh 1vw;
+        @include GridFrame();
+
+        .Main,
+        .Shadow,
+        .Border {
+          display: flex;
+          justify-content: flex-end;
+          flex-wrap: nowrap;
+          flex-direction: column;
+          align-items: flex-start;
+
+          gap: 20px;
+          transition: $tF1 1s;
+
+          * {
+            $shadow: 0 0 20px Color(.08, .5);
+            font-size: 30px;
+            text-shadow: $shadow, $shadow;
+          }
+
+          .Line {
+            display: flex;
+            gap: 20px;
+          }
+        }
+
+        .Main {
+          z-index: 10;
+        }
+
+        .Shadow {
+          z-index: 5;
+          transform: translate(5px, 5px);
+
+          span {
+            color: Color(.5);
+          }
+        }
+
+        .Border {
+          z-index: 0;
+          opacity: .5;
+          transform: translate(10px, 10px);
+
+          span {
+            color: #0000;
+            -webkit-text-stroke: .5px Color();
+          }
+        }
+      }
+    }
+
+    /* ================================================ */
+
+    &.hide {
+      .BG {
+        .AFK {
+          >.Circle {
+            >.cer {
+              transform: scale(1.5);
+              opacity: 0;
+            }
+          }
+        }
+
+        .Background {
+          * {
+            opacity: 0;
+          }
+
+          .G2,
+          .G3,
+          .G4 {
+            transform: scale(.05);
+            opacity: 0;
+          }
+        }
+
+        .Dark {
+          * {
+            opacity: 0;
+          }
+        }
+
+        .BlackHole1 {
+          transform: scale(.05);
+          opacity: 0;
+        }
+      }
+
+      .UHD {
+        .Text {
+          gap: 50px;
+          opacity: 0;
+
+          .Shadow,
+          .Border {
+            transform: translate(0, 0);
+            transition: $tF1 5s;
+          }
+        }
+
+        .Back,
+        .Dir {
+          opacity: 0;
+          transform: translate(-100%);
+        }
+      }
+    }
+
+  }
+}
+
+@keyframes Rotate {
+  from {
+    transform: rotateZ(360deg);
+  }
+
+  to {
+    transform: rotateZ(0deg);
+  }
+}
+
+@keyframes TopLight {
+  from {
+    filter: brightness(1);
+  }
+
+  to {
+    filter: brightness(.6);
+  }
+}
+
+@keyframes HoleZoomInOut {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.1);
+  }
+}

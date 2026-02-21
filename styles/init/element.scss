@@ -1,0 +1,68 @@
+@use "../value.scss" as *;
+@use "sass:meta";
+
+$_current-style-clr-func: null;
+
+@function EleColor($value: 1, $opacity: 1) {
+  @if $_current-style-clr-func ==null {
+    @error "EleColor() can only use in ElementStyleInit";
+  }
+
+  @return meta.call($_current-style-clr-func, $value, $opacity);
+}
+
+@mixin ElementStyleInit($clr) {
+
+  $_current-style-clr-func: meta.get-function($clr) !global;
+
+  [kilo-style] {
+    &:is(table) {
+      font-size: 20px;
+      max-width: -webkit-fill-available;
+      min-width: -webkit-fill-available;
+      margin: 10px 30px;
+
+      *,
+      & {
+        outline: none;
+        border: none;
+      }
+
+      tr {
+        th {
+          padding: 10px;
+          background: EleColor(.5, .5);
+          color: EleColor();
+        }
+
+        td {
+          padding: 10px 20px;
+        }
+      }
+
+      tr {
+        &:first {
+          background-color: #0000;
+        }
+
+        &:nth-child(even) {
+          background: EleColor(.5, .2);
+        }
+
+        &:nth-child(odd) {
+          background: EleColor(.3, .2);
+        }
+      }
+
+      &[hover-style] {
+        tr {
+          &:hover {
+            background: EleColor(.5, .5);
+          }
+        }
+      }
+    }
+  }
+
+  $_active-clr-func: null !global;
+}

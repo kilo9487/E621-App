@@ -1,0 +1,33 @@
+@use "/styles/value" as *;
+
+.postGetByID {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+
+  .Input {
+    pointer-events: all;
+    overflow: auto;
+    backdrop-filter: $blur-effect-3;
+    @include GridFrame();
+    background-color: Color(.08, .5);
+
+    input {
+      background: none;
+      outline: none;
+      border: none;
+      font-size: 25px;
+      padding: 10px 50px;
+      opacity: .5;
+
+      &:hover,
+      &:focus {
+        opacity: 1;
+      }
+
+      &:focus {
+        background-color: Color(.08, .8);
+      }
+    }
+  }
+}

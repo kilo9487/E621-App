@@ -1,0 +1,269 @@
+@use "../value.scss" as *;
+@use "sass:meta";
+
+$_current-style-clr-func: null;
+
+@function InpColor($value: 1, $opacity: 1) {
+  @if $_current-style-clr-func ==null {
+    @error "InpColor() can only use in InputStyleInit";
+  }
+
+  @return meta.call($_current-style-clr-func, $value, $opacity);
+}
+
+@mixin InputStyleInit($clr) {
+
+  $_current-style-clr-func: meta.get-function($clr) !global;
+
+  input {
+    appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+
+  [kilo-style] {
+    &:is(a) {
+      text-decoration: underline InpColor(.3);
+      color: InpColor();
+      padding: 0 5px;
+
+      &:hover {
+        text-decoration: underline InpColor(1);
+        text-shadow: 0 0 10px InpColor();
+      }
+
+      &:active {
+        text-decoration: underline InpColor(.5);
+        color: InpColor(.4);
+        text-shadow: 0 0 10px InpColor(.5);
+      }
+    }
+
+    &:is(button) {
+      font-size: 16px;
+      padding: 5px 50px;
+      border-radius: 5px;
+      background: InpColor(.3);
+      border: none;
+
+      &[solid] {
+        margin: 5px 0;
+      }
+
+      &:hover {
+        color: InpColor();
+        background: InpColor(.5);
+        text-shadow: 0 0 10px InpColor();
+        transition-duration: .1s;
+      }
+
+      &:active {
+        background: InpColor(.1);
+        transition-duration: 0s;
+      }
+    }
+
+    &:is(textarea) {
+      background-color: InpColor(.7);
+      border: none;
+      padding: 5px 10px;
+      margin: 0 10px;
+      font-size: 15px;
+      border-radius: 5px;
+      outline: none;
+      color: InpColor();
+
+      &:hover {
+        background-color: InpColor(.4);
+        transform: scale(1.05);
+        text-shadow: 0 0 10px InpColor();
+      }
+
+      &:focus {
+        box-shadow: 0 0 10px InpColor(.08);
+        background-color: InpColor(.7);
+        text-shadow: none;
+        transform: scale(1.1);
+        color: #fff;
+      }
+
+      &::placeholder {
+        transition: DefaultTransition();
+        color: InpColor();
+        opacity: .5;
+      }
+
+      &:hover::placeholder {
+        opacity: .6;
+      }
+
+      &:focus::placeholder {
+        opacity: .7;
+        text-shadow: 0 0 10px InpColor(.08);
+      }
+
+      &:read-only {
+        text-align: center;
+        width: 250px;
+        color: InpColor();
+      }
+
+      &:read-only:focus {
+        box-shadow: 0 0 10px InpColor(.08);
+        text-shadow: 0 0 10px InpColor();
+        transform: scale(1.1) rotate(1deg);
+      }
+    }
+
+    &:is(input) {
+      margin: 5px;
+
+      &:disabled {
+        cursor: no-drop;
+      }
+
+      &:disabled:hover {
+        opacity: .6;
+      }
+
+      &[type=text],
+      &[type=password],
+      &[type=number],
+      &[type=numbers] {
+        background-color: #fff0;
+        font-size: 20px;
+        width: 100px;
+        text-align: center;
+        padding: 5px;
+        border: 3px solid InpColor(.5);
+        border-radius: 10px;
+        outline: none;
+        color: InpColor();
+
+        &:hover {
+          border: 3px solid InpColor(.7);
+          text-shadow: 0 0 10px InpColor();
+        }
+
+        &:focus {
+          border: none;
+          border-top: 3px solid #0000;
+          width: 100px;
+          border-bottom: 3px solid InpColor();
+          background-color: InpColor(.5, .3);
+          text-shadow: 0 0 10px InpColor();
+          box-shadow: 0 0 10px InpColor(1, .1);
+        }
+
+        &::placeholder {
+          transition: DefaultTransition();
+          color: InpColor();
+          opacity: .5;
+        }
+
+        &:hover::placeholder {
+          opacity: .6;
+        }
+
+        &:focus::placeholder {
+          opacity: .7;
+          text-shadow: 0 0 10px InpColor(.08);
+        }
+
+        &:read-only {
+          text-align: center;
+          width: 250px;
+          color: InpColor();
+        }
+
+        &:read-only {
+          text-align: center;
+          width: 250px;
+          color: InpColor();
+        }
+
+        &:read-only:focus {
+          box-shadow: 0 0 10px InpColor(.08);
+          text-shadow: 0 0 10px InpColor();
+          transform: scale(1.1) rotate(1deg);
+        }
+      }
+
+      &[type=range] {
+        appearance: none;
+        height: 10px;
+        background: InpColor(.5);
+        height: 20px;
+        outline: none;
+        border-radius: 5px;
+
+        &:hover {
+          background: InpColor(.6);
+        }
+
+        &::-webkit-slider-thumb {
+          appearance: none;
+          transition: DefaultTransition();
+          height: 20px;
+          width: 10px;
+          background: InpColor(.8);
+          border-radius: 5px;
+          cursor: w-resize;
+
+          &:hover {
+            height: 35px;
+            background: InpColor();
+            border-radius: 3px;
+          }
+        }
+      }
+
+      &[type=color] {
+        background-color: InpColor(.02, .2);
+        padding: 3px;
+        border: 2px solid InpColor();
+        border-radius: 6px;
+
+        &:hover {
+          background-color: InpColor();
+        }
+
+        &:focus {
+          border-radius: 3px;
+        }
+
+        &::-webkit-color-swatch {
+          background-color: InpColor();
+          padding: 3px;
+          border: 2px solid InpColor();
+          border-radius: 2px;
+        }
+      }
+
+
+    }
+
+    &:is(select) {
+      margin: 0 10px;
+      padding: 0 10px;
+      color: InpColor();
+      background-color: InpColor(.2, .1);
+      border: 2px solid InpColor();
+      border-radius: 10px;
+
+      option {
+        background-color: #000;
+      }
+
+      &:focus {
+        outline: none;
+      }
+    }
+  }
+
+  $_active-clr-func: null !global;
+}

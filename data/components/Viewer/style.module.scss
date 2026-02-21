@@ -1,0 +1,87 @@
+@use "/styles/value" as *;
+
+.Frame {
+  @include GridFrame();
+  overflow: hidden;
+
+  .GUI {
+    z-index: 2;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+
+    * {
+      pointer-events: all;
+    }
+
+    .Bar {
+      background-color: Color(.1, .8);
+      backdrop-filter: $blur-effect;
+      @include GridFrame();
+
+      .Contro {
+        z-index: 2;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 5px;
+
+        button {
+          outline: none;
+          border: none;
+          background-color: Color(.2);
+          color: Color();
+          font-size: 15px;
+          padding: 6px 25px;
+
+          &:hover,
+          &:active {
+            transition: none;
+            background-color: Color();
+            color: #000 !important;
+          }
+
+          &:active {
+            filter: brightness(.5);
+          }
+        }
+
+        input[type="color"] {
+          margin-left: auto;
+          background-color: Color(.2);
+
+          &::-webkit-color-swatch {
+            border: 2px solid Color();
+          }
+        }
+      }
+
+      .Value {
+        z-index: 1;
+        @include FlexCenter2();
+
+        span {
+          color: Color();
+        }
+      }
+    }
+  }
+
+  .Img {
+    @include GridFrame();
+    z-index: 1;
+    overflow: hidden;
+
+    .Tar {
+      overflow: hidden;
+      transition: cubic-bezier(0, 1, 0, 1) .5s;
+      @include GridFrame();
+
+      * {
+        pointer-events: none !important;
+      }
+    }
+  }
+}

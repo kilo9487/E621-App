@@ -1,0 +1,62 @@
+@use "../value.scss" as *;
+@use "sass:meta";
+
+$_current-style-clr-func: null;
+
+@function BasColor($value: 1, $opacity: 1) {
+  @if $_current-style-clr-func ==null {
+    @error "BasColor() can only use in BaseStyleInit";
+  }
+
+  @return meta.call($_current-style-clr-func, $value, $opacity);
+}
+
+@mixin BaseStyleInit($clr) {
+
+  $_current-style-clr-func: meta.get-function($clr) !global;
+
+  ::selection {
+    background: BasColor(.4, 1);
+    color: BasColor();
+    text-shadow:
+      0 0 5px BasColor(1),
+      3px 3px 0 BasColor(.05),
+      2.5px 2.5px 0 BasColor(.08),
+      2px 2px 0 BasColor(.1),
+      1.5px 1.5px 0 BasColor(.15),
+      1px 1px 0 BasColor(.2),
+      .5px .5px 0 BasColor(.25);
+  }
+
+  ::-webkit-scrollbar {
+    width: 15px;
+    height: 15px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: none;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+    border: 5px solid transparent;
+    background-clip: content-box;
+    background-color: BasColor(.7);
+
+    :hover {
+      background-color: BasColor();
+    }
+  }
+
+
+  :focus-visible {
+    outline: 2px solid BasColor();
+  }
+
+  [overflow-bar-none]::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  $_active-clr-func: null !global;
+}

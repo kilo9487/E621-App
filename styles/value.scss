@@ -1,0 +1,110 @@
+$noise-overlay: opacity(1);
+
+$blur-effect: blur(var(--blur-effect)) $noise-overlay;
+$blur-effect-2: blur(var(--blur-effect-2)) $noise-overlay;
+$blur-effect-3: blur(var(--blur-effect-3)) $noise-overlay;
+$blur-effect-4: blur(var(--blur-effect-4)) $noise-overlay;
+$blur-effect-5: blur(var(--blur-effect-5)) $noise-overlay;
+
+@function Color($num : 1, $opacit : 1) {
+  @return rgba(calc(var(--theme-color-r) * $num), calc(var(--theme-color-g) * $num), calc(var(--theme-color-b) * $num), $opacit );
+}
+
+@function LightColor($num : 1, $opacit : 1) {
+  @return rgba(calc(var(--theme-color-r) + (255 * $num )), calc(var(--theme-color-g) + (255 * $num )), calc(var(--theme-color-b) + (255 * $num )), $opacit );
+}
+
+@function Color2($num : 1, $opacit : 1) {
+  @return rgba(calc(var(--theme-color2-r) * $num), calc(var(--theme-color2-g) * $num), calc(var(--theme-color2-b) * $num), $opacit );
+}
+
+@function LightColor2($num : 1, $opacit : 1) {
+  @return rgba(calc(var(--theme-color2-r) + (255 * $num )), calc(var(--theme-color2-g) + (255 * $num )), calc(var(--theme-color2-b) + (255 * $num )), $opacit );
+}
+
+@mixin MonacoEditor() {
+  filter: grayscale(1) brightness(.9);
+  position: absolute;
+  width: 100%;
+  height: 100%;
+
+  * {
+    transition: none;
+    font-family: hack-nerd-font-mono;
+  }
+}
+
+@mixin BgCntr() {
+  background-size: cover;
+  background-position: center;
+}
+
+@mixin Freedom() {
+  transform: translate(-50%, -50%);
+  position: absolute;
+}
+
+@mixin FullDiv($center: true) {
+  width: 100%;
+  height: 100%;
+
+  @if $center {
+    @include Freedom();
+    top: 50%;
+    left: 50%;
+  }
+
+  @else {
+    position: absolute;
+  }
+}
+
+@mixin FlexCenter() {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin FlexCenter2() {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  flex-direction: column;
+  align-items: center;
+}
+
+@mixin GridFrame($event-lock: false, $full: true) {
+  display: grid;
+  grid-template-areas: "area";
+  align-items: center;
+  justify-items: center;
+
+  >* {
+    grid-area: area;
+
+    @if $full {
+      width: 100%;
+      height: 100%;
+    }
+
+    @if $event-lock {
+      pointer-events: none;
+
+      >* {
+        pointer-events: all;
+      }
+    }
+  }
+}
+
+$transition-duration: .5s;
+$transition-delay: 0s;
+$transition-timing-function: cubic-bezier(0, .5, 0, 1);
+
+@function DefaultTransition($duration : $transition-duration, $delay: $transition-delay, $timing-function : $transition-timing-function) {
+  @return $duration $timing-function $delay;
+}
+
+$cubic-bezier-1: cubic-bezier(0, 1, 0, 1);
+$cubic-bezier-2: cubic-bezier(1, 0, 0, 1);
+$cubic-bezier-3: cubic-bezier(0, 1, 1, 0);

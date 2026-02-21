@@ -1,0 +1,368 @@
+@use "/styles/value" as *;
+
+.After {
+  clip-path: polygon(0 0, 0% 100%, 100% 0);
+  background-color: Color(.7);
+  width: 10px;
+}
+
+.Before {
+  width: 5px;
+  background-color: Color(.7);
+}
+
+.ClipLine,
+.ClipLineText {
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><polygon points='50 0,100 0,50 100,0 100' fill='white'/></svg>");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+
+.ClipLine {
+  background-color: Color();
+  color: #0000;
+}
+
+.ClipLineText {
+  background-color: Color();
+
+  padding: 0 6px;
+  margin: 0 5px;
+}
+
+.ClipLineText2 {
+  background-color: Color();
+  padding: 0 3px;
+  margin: 0 10px;
+}
+
+.ClipLineLarge {
+  clip-path: polygon(0.2% 0, 100% 0%, 99.8% 100%, 0% 100%);
+  background-color: Color(.4);
+  padding: 5px;
+  margin: 10px 10px;
+  text-align: center;
+  display: block;
+
+  span {
+    font-size: 20px;
+    color: Color();
+  }
+
+  &:hover {
+    background-color: Color(.5);
+    margin: 10px 0;
+
+    span {
+      letter-spacing: 5px;
+      text-shadow: 0 0 10px Color();
+    }
+  }
+
+  &[set-title] {
+    clip-path: none;
+    border-radius: 5px;
+  }
+}
+
+.ClipLineSpace {
+  display: block;
+  margin: 15px 0;
+}
+
+.InnerContent {
+  background-color: Color(.3, .3);
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 5px;
+  display: block;
+  backdrop-filter: $blur-effect;
+
+  blockquote {
+    margin: 0;
+  }
+}
+
+.HideText {
+  transition: .3s cubic-bezier(0, .5, 0, 1);
+  background-color: Color(.2);
+  padding: 0 5px;
+  border-radius: 5px;
+  outline: 1px solid Color(.5);
+
+  span {
+    color: #0000;
+  }
+
+  &:hover {
+    background-color: Color(.4);
+
+    span {
+      color: #fff;
+    }
+  }
+
+  &:active {
+    background-color: Color(.2);
+
+    span {
+      text-shadow: 0 0 10px Color();
+      color: Color();
+    }
+  }
+
+  &::selection {
+    background-color: #0000;
+
+    span {
+      color: #0000;
+    }
+  }
+
+  &::selection {
+    background-color: #0000;
+
+    span {
+      color: #0000;
+    }
+  }
+
+  &:hover::selection,
+  &:active::selection {
+    background: Color(.3);
+
+    span {
+      color: LightColor(.5);
+    }
+  }
+}
+
+.EmpText {
+  padding: 0 15px;
+  margin: 5px;
+  background-color: Color(.3);
+  border-radius: 5px;
+
+  &:hover {
+    background-color: Color(.5);
+
+    span {
+      color: Color();
+      text-shadow: 0 0 10px Color();
+    }
+  }
+}
+
+.CodeText {
+  font-family: monospace;
+  padding: 0 15px;
+  margin: 0 7px;
+  outline: 2px solid Color(.4);
+  border-radius: 5px;
+  background-color: Color(.2, .2);
+
+  &:hover {
+    outline: 2px solid Color();
+
+    span {
+      color: Color();
+      text-shadow: 0 0 10px Color();
+      background-color: #0000;
+    }
+  }
+}
+
+.SmallText {
+  span {
+    font-size: 15px;
+    opacity: .5;
+  }
+}
+
+/**************************************/
+
+.Title {
+  display: flex;
+  margin: 5px 0;
+
+  * {
+    transition: .3s cubic-bezier(0, .5, 0, 1);
+  }
+
+  >.Before {
+    background-color: Color(.2);
+    display: grid;
+
+    span {
+      width: 15px;
+      clip-path: polygon(100% 0, 50% 50%, 100% 100%, 0 100%, 0 0);
+      background-color: Color(.7);
+    }
+  }
+
+  >.Text {
+    background-color: Color(.2);
+    padding: 5px 40px;
+
+    h1 {
+      display: inline;
+      font-size: 25px;
+      letter-spacing: 2px;
+      color: Color();
+      font-weight: normal;
+
+      * {
+        color: Color();
+      }
+    }
+  }
+
+  >.After {
+    background-color: Color(.2);
+
+  }
+
+  >.ClipLine {
+    background-color: Color(.7);
+    width: 20px;
+  }
+
+  &:hover {
+
+    >.Before {
+      background-color: Color(.5);
+
+      span {
+        width: 15px;
+        clip-path: polygon(50% 0, 100% 0, 25% 100%, 0 100%, 0 0);
+        background-color: Color();
+
+      }
+    }
+
+    >.Text {
+
+      padding: 5px 80px 5px 60px;
+      background-color: Color(.5);
+
+      h1 {
+        text-shadow: 0 0 10px Color();
+      }
+    }
+
+    >.After {
+      background-color: Color(.5);
+    }
+
+    >.ClipLine {
+      background-color: Color();
+      margin: 0 10px;
+    }
+
+  }
+}
+
+.Subtitle {
+  display: flex;
+  margin: 5px 0;
+
+  * {
+    transition: .3s cubic-bezier(0, .5, 0, 1);
+  }
+
+  >.Before {
+    width: 5px;
+    background-color: Color(.7);
+  }
+
+  >.Text {
+    background-color: Color(.4);
+    padding: 5px 30px;
+
+    h2 {
+      display: inline;
+      letter-spacing: 2px;
+      font-size: 20px;
+      color: Color();
+      font-weight: normal;
+    }
+
+    * {
+      color: Color();
+    }
+  }
+
+  >.After {
+    width: 10px;
+    background-color: Color(.4);
+  }
+
+  &:hover {
+
+    >.Before {
+      width: 8px;
+      background-color: Color();
+    }
+
+    >.Text {
+      padding: 5px 80px 5px 50px;
+      background-color: Color(.5);
+
+      h2 {
+        text-shadow: 0 0 10px Color();
+      }
+    }
+
+    >.After {
+      background-color: Color(.5);
+    }
+
+  }
+}
+
+.Thirdtitle {
+
+  * {
+    transition: DefaultTransition(.3s);
+  }
+
+  margin: 10px 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+
+  >.BeforeLine {
+    width: 4px;
+    margin-right: 10px;
+    transform: scaleY(1);
+    background-color: Color(.5);
+  }
+
+  >.Text {
+    padding: 0 0;
+    padding-bottom: 2px;
+
+    h3 {
+      display: inline;
+      font-size: 20px;
+      color: Color();
+      font-weight: normal;
+    }
+
+    * {
+      color: Color();
+    }
+
+
+  }
+
+  &:hover {
+    >.BeforeLine {
+      width: 2px;
+      padding: 6px 0;
+      margin-right: 20px;
+      background-color: Color();
+      transform: scaleY(1.3);
+    }
+  }
+}

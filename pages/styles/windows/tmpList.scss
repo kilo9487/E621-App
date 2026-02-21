@@ -1,0 +1,121 @@
+@use "/styles/value" as *;
+
+.tmpList {
+  .list {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    overflow: auto;
+
+    .item {
+      transform: translateY(50px);
+      opacity: 0;
+      background-color: Color(1, .1);
+      @include GridFrame();
+
+      .main {
+        z-index: 1;
+        padding: 10px 20px;
+        @include GridFrame();
+
+        .info {
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+
+          .title {
+            font-size: 20px;
+          }
+        }
+
+        .buttons {
+          z-index: 2;
+          display: flex;
+          flex-direction: row-reverse;
+          align-items: center;
+
+          button {
+            background-color: #0000;
+            border: none;
+            outline: none;
+            aspect-ratio: 1;
+
+            svg {
+              fill: Color();
+            }
+
+            &:hover,
+            &:active {
+
+              *,
+              & {
+                transition: all 0s, transform DefaultTransition();
+              }
+
+              background-color: Color();
+
+
+              svg {
+                fill: #000;
+              }
+            }
+
+            &:active {
+
+              *,
+              & {
+                transition: none;
+              }
+
+              filter: brightness(.8);
+              transform: scale(.95);
+
+            }
+          }
+        }
+      }
+
+      .flash {
+        pointer-events: none;
+        z-index: 2;
+        @include GridFrame();
+
+        .frist {
+          transition-duration: 1s;
+          background-color: Color();
+        }
+
+        .add {
+          background-color: Color();
+          animation: 1s cubic-bezier(0, .5, 0, 1) 0s 1 forwards TmpListAddFlash;
+        }
+      }
+    }
+
+    &.START {
+      .item {
+        transform: none;
+        opacity: 1;
+      }
+
+      .flash {
+        .frist {
+          opacity: 0;
+        }
+      }
+    }
+  }
+}
+
+@keyframes TmpListAddFlash {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}

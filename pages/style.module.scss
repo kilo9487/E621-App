@@ -1,0 +1,822 @@
+@use "/styles/value" as *;
+@use "./styles/styles";
+
+#Frame {
+  @include FullDiv();
+  @include GridFrame();
+  overflow: hidden;
+
+  #Desktop,
+  #Login {
+    background-color: #000;
+  }
+
+  #Desktop {
+    z-index: 1;
+    @include GridFrame();
+    overflow: hidden;
+
+    * {
+      color: Color();
+      user-select: none;
+    }
+
+    & {
+      button[kiase-style] {
+        outline: none;
+        border: none;
+        background-color: Color(.15);
+        gap: 5px;
+        font-size: 15px;
+        padding: 5px 20px;
+
+        *,
+        & {
+          color: Color();
+        }
+
+        &.actv {
+          background-color: Color(.5);
+          text-shadow: 0 0 5px Color();
+
+          &:hover {
+            text-shadow: 0 0 5px #0008;
+          }
+
+          &:active {
+            background-color: Color(.4);
+            text-shadow: 0 0 5px Color();
+          }
+        }
+
+        &:disabled {
+
+          &,
+          &:hover,
+          &:active {
+            pointer-events: none !important;
+            background-color: Color(.6, .1);
+
+            *,
+            & {
+              color: Color(1, .5);
+            }
+          }
+        }
+
+        &:hover {
+          transition-duration: 0s;
+          background-color: Color();
+
+          *,
+          & {
+            color: #000;
+          }
+        }
+
+        &:active {
+          transition-duration: .3s;
+          background-color: Color(.5);
+
+          *,
+          & {
+            color: Color();
+          }
+
+          >* {
+            transition-duration: 0s;
+            opacity: .5;
+          }
+        }
+      }
+    }
+
+    .Menu {
+      z-index: 100;
+      pointer-events: none;
+
+      .Buttons {
+        pointer-events: all;
+        transition: all DefaultTransition(),
+          transform 0s,
+          top 0s,
+          left 0s;
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0% 100%);
+        overflow: hidden;
+        @include Freedom();
+        top: 0;
+        left: 50%;
+        display: flex;
+        flex-direction: column;
+        backdrop-filter: $blur-effect-4;
+        background-color: Color(.02, .5);
+
+        button {
+          text-align: left;
+
+          *:not(:hover, :active),
+          &:not(:hover, :active) {
+            background: none !important;
+          }
+        }
+
+        & {
+          &.tl {
+            transform: translate(0%, 0%);
+
+          }
+
+          &.tc {
+            transform: translate(-50%, 0%);
+
+          }
+
+          &.tr {
+            transform: translate(-100%, 0%);
+
+          }
+
+          &.cl {
+            transform: translate(0%, -50%);
+
+          }
+
+          &.cc {
+            transform: translate(-50%, -50%);
+
+          }
+
+          &.cr {
+            transform: translate(-100%, -50%);
+
+          }
+
+          &.bl {
+            transform: translate(0%, -100%);
+
+          }
+
+          &.bc {
+            transform: translate(-50%, -100%);
+
+          }
+
+          &.br {
+            transform: translate(-100%, -100%);
+
+          }
+        }
+
+      }
+
+      &.hide {
+        pointer-events: none;
+
+        .Buttons {
+          opacity: 0;
+
+          &.tl,
+          &.tc,
+          &.tr {
+            clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
+
+          }
+
+          &.cl,
+          &.cc,
+          &.cr {
+            clip-path: polygon(0 50%, 100% 50%, 100% 50%, 50%);
+          }
+
+          &.bl,
+          &.bc,
+          &.br {
+            clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%);
+          }
+        }
+      }
+    }
+
+    .MainArea {
+      z-index: 5;
+      @include GridFrame();
+
+      .Windows {
+        >* {
+          pointer-events: all;
+        }
+      }
+
+      .StartMenu {
+        z-index: 1;
+        opacity: 0;
+        z-index: 1000;
+        background-color: Color(.02, .8);
+        backdrop-filter: none;
+        @include GridFrame();
+
+        & {
+          pointer-events: none;
+        }
+
+        .Side {
+          z-index: 2;
+          display: flex;
+          pointer-events: none;
+
+          >div {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+
+            >button {
+              @include FlexCenter2();
+              aspect-ratio: 1;
+              width: 50px;
+              border: none;
+              outline: none;
+              background-color: #0000;
+
+              svg {
+                fill: Color();
+              }
+
+              &:hover,
+              &:active {
+                background-color: Color();
+
+                &,
+                * {
+                  transition: all 0s, transform DefaultTransition();
+                }
+
+                svg {
+                  fill: #000;
+                }
+              }
+
+              &:active {
+                transform: scale(.9);
+                filter: brightness(.8);
+
+                &,
+                * {
+                  transition: none;
+                }
+              }
+            }
+          }
+        }
+
+        .Buttons {
+          display: flex;
+          justify-content: flex-start;
+          flex-wrap: wrap;
+          flex-direction: row;
+          align-content: center;
+          gap: 10px;
+          padding: 100px;
+
+          >div {
+            transform: translateX(200px) scale(.95);
+            opacity: 0;
+            transition-timing-function: cubic-bezier(.64, .13, 0, 1);
+
+            >button {
+              @include GridFrame();
+              $size: 150px;
+              width: $size;
+              height: $size;
+              background-color: Color(.5, .5);
+              border: none;
+              outline: none;
+
+              .icon {
+                @include FlexCenter();
+                fill: Color();
+              }
+
+              .name {
+                display: flex;
+                align-items: flex-end;
+                justify-content: flex-start;
+                padding: 5px;
+              }
+
+              &:hover,
+              &:active {
+                background-color: Color();
+
+                &,
+                * {
+                  transition: all 0s, transform DefaultTransition();
+                }
+
+                .icon {
+                  fill: #000;
+                }
+
+                .name {
+                  span {
+                    color: #000;
+                  }
+                }
+              }
+
+              &:active {
+                transform: scale(.9);
+                filter: brightness(.8);
+
+                &,
+                * {
+                  transition: none;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      &.startMenu {
+
+        .Windows,
+        .StartMenu {
+          transition: ease-out .5s;
+        }
+
+        .Windows {
+          opacity: 0;
+
+          *,
+          & {
+            pointer-events: none;
+          }
+        }
+
+        .StartMenu {
+          opacity: 1;
+
+          & {
+            pointer-events: all;
+          }
+
+          .Side {
+            >div {
+              pointer-events: all;
+
+            }
+          }
+
+          .Buttons {
+            >div {
+              transition: DefaultTransition();
+              transform: none;
+              opacity: 1;
+            }
+          }
+        }
+      }
+    }
+
+    .Buttons {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      overflow: hidden;
+
+      .Bar {
+        overflow: hidden;
+        z-index: 10;
+        zoom: 80%;
+        background-color: Color(.02, .7);
+        backdrop-filter: $blur-effect;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 5px;
+
+        >div {
+          display: flex;
+        }
+
+        // .Left {}
+
+        .List {
+          overflow: auto;
+        }
+
+        .Right {
+          display: flex;
+          align-items: center;
+          flex-direction: column;
+          justify-content: center;
+          padding: 0 20px;
+        }
+      }
+    }
+
+    &.hide {
+
+      *,
+      & {
+        pointer-events: none;
+        transition: none;
+      }
+
+      >.Background {
+        transform: scale(1.2);
+        opacity: 0;
+      }
+
+      >.Buttons {
+        >.Bar {
+          transform: translateY(100%)
+        }
+      }
+    }
+  }
+
+  #Login {
+    @include GridFrame(true);
+    z-index: 5;
+    zoom: 60%;
+    overflow: hidden;
+
+    .UserList {
+      z-index: 5;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: flex-start;
+      justify-content: flex-start;
+
+      >div {
+        transition: cubic-bezier(0, .49, 0, 1) 1s;
+        margin: 50px;
+        zoom: 90%;
+
+        .User {
+          @include GridFrame();
+          margin-top: 10px;
+          outline: 5px solid #0000;
+          border: none;
+          padding: 0;
+          width: 400px;
+          height: 100px;
+          background-color: #00000048;
+          backdrop-filter: $blur-effect-2;
+
+          .Main {
+            display: flex;
+            align-items: stretch;
+            padding-left: 10px;
+            gap: 10px;
+            z-index: 2;
+
+            .avatar {
+              margin: 15px;
+              aspect-ratio: 1;
+              border-radius: 50%;
+            }
+
+            .name {
+              @include FlexCenter();
+
+              span {
+                font-size: 28px;
+              }
+            }
+          }
+
+          .Background {
+            z-index: 1;
+            filter: brightness(.5);
+            opacity: .3;
+          }
+
+          &:hover {
+            * {
+              transition: all 0s, transform DefaultTransition();
+            }
+
+            .Background {
+              filter: brightness(1.2);
+            }
+          }
+
+          &:active {
+            filter: brightness(.8);
+            transform: scale(.95);
+            transition: none;
+
+            .Background {
+              filter: brightness(1);
+            }
+          }
+        }
+      }
+    }
+
+    .LoginBoard {
+      @include GridFrame();
+      z-index: 3;
+
+      >div {
+        transition: cubic-bezier(0, .49, 0, 1) 1s;
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        justify-content: center;
+        gap: 30px;
+        transition: all cubic-bezier(.47, .19, 0, 1) .8s, opacity 0s;
+
+        $shadow : 0 0 20px #0008;
+
+        &.createAccount {
+          gap: 30px;
+
+          h1 {
+            font-size: 80px;
+            font-weight: normal;
+            padding: 5px 0px;
+            margin: 0px;
+            text-shadow: $shadow, $shadow, $shadow;
+          }
+
+          .CLIP {
+            height: 20px;
+          }
+
+          .input {
+            input {
+              width: 500px;
+
+              &[type=color] {
+                height: 50px;
+              }
+            }
+          }
+
+          .button {
+            button {
+              width: 500px;
+            }
+          }
+        }
+
+        .avatar {
+          transition-delay: 0s;
+        }
+
+        .name {
+          transition-delay: .1s;
+        }
+
+        .input,
+        .button {
+          transition-delay: .2s;
+        }
+
+        .avatar {
+          aspect-ratio: 1;
+          width: 250px;
+          border-radius: 50%;
+        }
+
+        .name {
+          font-size: 50px;
+          letter-spacing: 3px;
+        }
+
+        .input {
+          display: flex;
+          flex-direction: column;
+
+          span {
+            font-size: 30px;
+            padding: 10px;
+            text-shadow: $shadow, $shadow, $shadow;
+          }
+
+          input {
+            padding: 10px 20px;
+            background-color: #0005;
+            outline: none;
+            border: none;
+            font-size: 30px;
+            width: 400px;
+            backdrop-filter: $blur-effect-2;
+
+            &::placeholder {
+              color: #fff8;
+            }
+          }
+        }
+
+        .button {
+          button {
+            outline: none;
+            border: none;
+            font-size: 30px;
+            background-color: #fff3;
+            padding: 10px 50px;
+            backdrop-filter: $blur-effect-2;
+
+            &:hover {
+              background-color: #fff;
+              color: #000;
+              transition: all 0s, transform DefaultTransition();
+            }
+
+            &:active {
+              background-color: #fff;
+              color: #000;
+              transition: none;
+              transform: scale(.9);
+              filter: brightness(.8);
+
+            }
+          }
+        }
+
+        .status {
+          font-size: 20px;
+        }
+
+        &.up,
+        &.down {
+          >* {
+            transition-delay: 1s;
+            transition-timing-function: cubic-bezier(0, .73, 0, 1);
+            transform: translateY(400px);
+          }
+
+          transition: cubic-bezier(.47, .19, 0, 1) .8s,
+          opacity 0s cubic-bezier(.47, .19, 0, 1) .8s;
+
+          opacity: 0;
+          gap: 100px;
+        }
+
+        &.up {
+          transform: translateY(-100%);
+        }
+
+        &.down {
+          transform: translateY(100%);
+        }
+
+        &.hide {
+          transform: translateY(-100%);
+        }
+      }
+    }
+
+    .Backdrop {
+      z-index: 2;
+      background: radial-gradient(circle, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, 1) 100%);
+      opacity: .7;
+
+      &.newAccount {
+        opacity: .9;
+      }
+    }
+
+    .Backgrounds {
+      transition: cubic-bezier(0, .49, 0, 1) 1s;
+      overflow: hidden;
+      z-index: 1;
+      @include GridFrame();
+
+      >.img {
+        @include GridFrame();
+
+        &.show {
+          z-index: 2;
+          opacity: 1;
+          transform: none;
+          transition: cubic-bezier(0, 1, .5, 1) 1s, filter cubic-bezier(0, 1, .5, 1) .5s, opacity ease .4s;
+        }
+
+        @mixin def() {
+          transition: ease .2s;
+          z-index: 1;
+          opacity: 0;
+          filter: blur(100px);
+        }
+
+        &.up {
+          @include def();
+          transform: scale(1.5) translateY(-30%);
+        }
+
+        &.down {
+          @include def();
+          transform: scale(1.5) translateY(30%);
+        }
+
+        &.hide {
+          @include def();
+          transition: ease .5s;
+          transform: scale(2);
+        }
+      }
+    }
+
+    &.hide {
+      opacity: 0;
+
+      *,
+      & {
+        pointer-events: none;
+        transition: none;
+      }
+
+      .UserList {
+        >div {
+          transform: translateX(-150%);
+        }
+      }
+
+      .LoginBoard {
+
+        >div {
+          gap: 50px;
+        }
+      }
+
+      .Backgrounds {
+        transform: scale(1.3);
+      }
+    }
+  }
+
+  .Background {
+    overflow: hidden;
+    @include GridFrame();
+    z-index: 1;
+
+    .Image {
+      @include BgCntr();
+      transition: none;
+    }
+  }
+}
+
+.WindowFrame {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+
+  >.ButtonList {
+    @include GridFrame();
+    background: Color(.3, .5);
+    overflow: hidden;
+
+    .background,
+    .text {
+      display: flex;
+
+      button {
+        &:first-child {
+          padding-left: 35px !important;
+        }
+
+        transform: skewX(-10deg) translateX(-16px);
+        box-shadow: -8px 0 5px 10px Color(.01, .8);
+
+        div {
+          transform: skewX(10deg);
+          pointer-events: none;
+        }
+      }
+    }
+
+    .background {
+      z-index: 0;
+      pointer-events: none;
+      opacity: .4;
+
+      *,
+      & {
+        color: #0000 !important;
+      }
+    }
+
+    .text {
+      z-index: 10;
+
+      *:not(:hover, :active),
+      &:not(:hover, :active) {
+        background: none !important;
+      }
+
+      *,
+      & {
+        box-shadow: none !important;
+      }
+    }
+  }
+
+  >.MainContent {
+    overflow: hidden;
+    @include GridFrame();
+  }
+}

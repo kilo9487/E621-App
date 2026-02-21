@@ -1,0 +1,416 @@
+@use "/styles/value" as *;
+
+.Setting {
+  [kilo-style] {
+    &:is(input) {
+      &[type=range] {
+        border-radius: 0px;
+        height: 6px;
+
+        &::-webkit-slider-thumb {
+          border-radius: 0px;
+        }
+      }
+    }
+  }
+
+  .home {
+    transition: .8s cubic-bezier(0, 1, 0, 1);
+    display: flex;
+    justify-content: center;
+    align-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 100px;
+
+    button {
+      aspect-ratio: 1;
+      width: 150px;
+      @include GridFrame();
+      background-color: #0006;
+      border: 3px solid Color();
+      outline: none;
+
+      * {
+        pointer-events: none
+      }
+
+      .icon {
+        @include FlexCenter2();
+        fill: Color();
+      }
+
+      .name {
+        color: Color();
+        padding: 10px;
+        display: flex;
+        flex-direction: column-reverse;
+        font-size: 17px;
+      }
+
+      .index {
+        color: Color();
+        padding: 5px;
+        display: flex;
+        font-size: 15px;
+        opacity: 0;
+        transition: .2s ease-in-out;
+      }
+
+      &:hover,
+      &:active {
+
+        *,
+        & {
+          transition: all 0s, transform DefaultTransition();
+        }
+
+        background-color: Color();
+
+
+        .icon {
+          fill: #000;
+        }
+
+        .name {
+          color: #000 !important;
+        }
+
+        .index {
+          color: #000 !important;
+        }
+      }
+
+      &:active {
+
+        *,
+        & {
+          transition: none;
+        }
+
+        filter: brightness(.8);
+        transform: scale(.95);
+
+      }
+
+      &.displayIndex {
+        .index {
+          transition: DefaultTransition();
+          opacity: 1;
+        }
+      }
+    }
+  }
+
+  .setting {
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(.8);
+    transition: none;
+    overflow: hidden;
+
+    @include GridFrame();
+
+    .frame {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      overflow: hidden;
+
+      .list {
+        display: flex;
+        flex-direction: column;
+
+        .buttonFrame {
+          @include GridFrame();
+          opacity: 0;
+          transform: translateY(20px);
+
+          button,
+          div {
+            font-size: 13px;
+            border: none;
+            border-left: 2px solid #0000;
+            text-align: left;
+            background-color: #0000;
+            padding: 10px 20px;
+            padding-left: 18px;
+
+            &.backMask,
+            &:hover {
+              transition: none;
+              color: #000 !important;
+              background-color: Color();
+
+              &+div {
+                background-color: Color(.5);
+                color: Color() !important;
+              }
+            }
+
+            &.activ {
+              border-left-color: Color();
+              background-color: Color(1, .3);
+
+              &:hover {
+                transition: none;
+                color: #000 !important;
+                border-left-color: Color(.3);
+                background-color: Color(.9);
+              }
+            }
+
+            &.backMask {
+              z-index: 2;
+              pointer-events: none;
+              transition:
+                all DefaultTransition(),
+                clip-path .45s linear;
+              clip-path: polygon(0 0, 0 0, 0 100%, 0% 100%);
+            }
+          }
+
+          &.frist {
+            margin: 10px 0;
+          }
+
+          &.backing {
+            .backMask {
+              clip-path: polygon(0 0, 100% 0, 100% 100%, 0% 100%);
+            }
+          }
+        }
+
+        &.START {
+          .buttonFrame {
+            opacity: 1;
+            transform: none;
+          }
+        }
+      }
+
+      .page {
+        background-color: Color(.08, .5);
+
+        padding: 10px;
+        overflow: hidden;
+        display: grid;
+
+        >div {
+          overflow: auto;
+          transform: translateY(50px);
+          opacity: 0;
+        }
+
+        [kiase-sty] {
+
+          &:is(button[non-pad]),
+          &:is(button) {
+            background-color: Color(.2, .5);
+            border: none;
+            font-size: 15px;
+            padding: 8px 40px;
+
+            svg {
+              fill: Color();
+            }
+
+            &:hover,
+            &:active {
+              transition: none;
+              background-color: Color();
+              color: #000 !important;
+
+              svg {
+                fill: #000;
+              }
+            }
+
+            &:active {
+              filter: brightness(.5);
+            }
+          }
+
+          &:is(button[non-pad]) {
+            padding: 0;
+          }
+
+          &:is(input) {
+            background-color: Color(.25);
+            border: none;
+            outline: none;
+            padding: 5px 10px;
+            font-size: 14px;
+            flex-grow: 1;
+
+            &:hover {
+              background-color: Color(.3);
+            }
+
+            &:focus {
+              background-color: Color(.15);
+            }
+          }
+        }
+
+        [pre-text],
+        [small-txt] {
+          user-select: text !important;
+        }
+
+        [pre-text] {
+          white-space: pre;
+          font-family: hack-nerd-font;
+        }
+
+        [small-txt] {
+          font-size: 15px;
+        }
+
+        .ListEditor {
+          display: flex;
+          flex-direction: column;
+          width: 500px;
+          gap: 5px;
+
+          .list {
+            display: flex;
+            gap: 5px;
+
+            .item {
+              display: flex;
+
+              button {
+                padding: 5px;
+              }
+            }
+          }
+        }
+
+        .buttonList {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .Wallpaper {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+
+          .frame {
+            width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+
+            .image {
+              height: 300px;
+              aspect-ratio: 16/9;
+              @include GridFrame();
+
+              .dragOverlay {
+                z-index: 2;
+                @include FlexCenter2();
+                background-color: #0000;
+                backdrop-filter: none;
+
+                span {
+                  opacity: 0;
+                  font-size: 40px;
+                }
+              }
+
+              &.ondrag {
+                .dragOverlay {
+                  background-color: Color(.1, .5);
+                  backdrop-filter: $blur-effect-3;
+
+                  span {
+                    opacity: 1;
+                  }
+                }
+              }
+            }
+
+            .position {
+              display: flex;
+              flex-direction: column;
+              align-items: stretch;
+              gap: 3px;
+
+              input {
+                width: 50px;
+              }
+
+              >div {
+                display: grid;
+                grid-template-columns: 20px 1fr 50px;
+                align-items: center;
+
+                >div {
+                  display: flex;
+
+                  input {
+                    width: max-content;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        .Information {
+          padding: 10px;
+
+          * {
+            font-family: hack-nerd-font;
+          }
+
+          h1,
+          h2,
+          h3,
+          h4 {
+            margin: 5px 10px;
+          }
+
+          h1 {
+            font-size: 40px;
+          }
+
+          h2 {
+            font-size: 20px;
+          }
+
+          h3 {
+            opacity: .5;
+            font-size: 15px;
+          }
+        }
+
+        &.START {
+          >div {
+            transform: none;
+            opacity: 1;
+          }
+        }
+      }
+    }
+  }
+
+  &.inSetting {
+    .home {
+      transition: none;
+      opacity: 0;
+      transform: scale(1.2);
+      pointer-events: none;
+    }
+
+    .setting {
+      transition: .8s cubic-bezier(0, 1, 0, 1);
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: all;
+    }
+  }
+}

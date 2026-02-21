@@ -1,0 +1,57 @@
+@use "/styles/value" as *;
+
+.None {
+  @include GridFrame();
+
+  &,
+  * {
+    pointer-events: none
+  }
+
+  .Text {
+    display: flex;
+
+    @include FlexCenter();
+    gap: 10px;
+    opacity: 0;
+
+    .case {
+      font-family: hack-nerd-font;
+      white-space: pre;
+      font-size: 50px;
+
+      animation-name: NONEFlash;
+      animation-timing-function: steps(1);
+      animation-duration: 1s;
+      animation-fill-mode: forwards;
+    }
+  }
+
+  &.START {
+    .Text {
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes NONEFlash {
+  0% {
+    opacity: 1;
+  }
+
+  1% {
+    opacity: .25;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  20% {
+    opacity: .25;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}

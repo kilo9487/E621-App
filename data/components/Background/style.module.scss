@@ -1,0 +1,30 @@
+@use "/styles/value" as *;
+
+.Background {
+  background-color: #000;
+  @include GridFrame();
+
+  .Mask {
+    z-index: 3;
+    background-color: Color();
+    mix-blend-mode: multiply;
+    opacity: 0;
+
+    &.Show {
+      opacity: 1;
+    }
+  }
+
+  .Image {
+    z-index: 1;
+    @include BgCntr();
+    transition: none;
+  }
+
+  .Video {
+    z-index: 1;
+    object-fit: cover;
+    object-position: center;
+    position: absolute;
+  }
+}
