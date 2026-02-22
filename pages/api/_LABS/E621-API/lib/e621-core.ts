@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { E621 } from "../types/e621";
 
 const USER_AGENT = process.env.E621_USER_AGENT || "KIASENOLO_E621App/0.1.0 (OpenSource project)";
-const BASE_URL = process.env.E621_BASE_URL || "https://e621.net";
+const BASE_URL = process.env.E621_BASE_URL || "https://e926.net";
 
 export const makeQuery = (params: Record<string, any>) => {
   const searchParams = new URLSearchParams();
