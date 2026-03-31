@@ -9,13 +9,12 @@
   outline: none;
   padding: 0 !important;
   @include GridFrame();
-  transform: translateY(50px);
-  opacity: 0;
+  transition: all DefaultTransition(), opacity ease-out .3s;
 
   .previewImage {
     z-index: 1;
     pointer-events: none;
-    background: Color(.1);
+    background: Color(.2);
     @include GridFrame();
 
     .vid {
@@ -48,71 +47,49 @@
       overflow: hidden;
       backdrop-filter: $blur-effect-5;
 
-      .background,
-      .text {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        background: Color(.4);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      background: Color(.4, .4);
+      overflow: hidden;
+
+      .score {
+        z-index: 5;
+        display: flex;
         overflow: hidden;
 
-        .score {
-          z-index: 5;
+        >div {
           display: flex;
-          overflow: hidden;
+          padding: 2px 5px;
+          font-size: 15px;
+          transform: skewX(-10deg) translateX(-3px);
 
           >div {
-            display: flex;
-            padding: 2px 5px;
-            font-size: 15px;
-            transform: skewX(-10deg) translateX(-16px);
-            box-shadow: -5px 0 5px 5px Color(.01);
+            padding: 0 3px;
+            transform: skewX(10deg);
+          }
 
-            >div {
-              padding: 0 3px;
-              transform: skewX(10deg);
-            }
+          &.up {
+            z-index: 10;
+            background: Color(.08, .4);
+          }
 
-            &.up {
-              z-index: 10;
-              padding-left: 20px;
-              background: Color(.08);
-            }
+          &.down {
+            z-index: 5;
+            background: Color(.2, .4);
+          }
 
-            &.down {
-              z-index: 5;
-              background: Color(.2);
-            }
-
-            &.fav {
-              z-index: 0;
-              background: Color(.3);
-            }
+          &.fav {
+            z-index: 0;
+            background: Color(.3, .4);
           }
         }
-
-        .rating {
-          z-index: 10;
-          padding: 0 10px;
-          transform: translateY(3px);
-        }
       }
 
-      .background {
-        opacity: .4;
-
-        *,
-        & {
-          color: #0000 !important;
-        }
-      }
-
-      .text {
-
-        *,
-        & {
-          background: none !important;
-          box-shadow: none !important;
-        }
+      .rating {
+        z-index: 10;
+        padding: 0 10px;
+        transform: translateY(3px);
+        text-align: right;
       }
     }
   }
@@ -151,8 +128,9 @@
     }
   }
 
-  &.START {
-    transform: none;
-    opacity: 1;
+  @starting-style {
+    filter: blur(10px);
+    transform: translateY(80px);
+    opacity: 0;
   }
 }

@@ -10,6 +10,7 @@ const logic = async (opt: Input): Promise<string[]> => {
   const { Vibrant } = await import("node-vibrant/node");
   const path = await import("path");
   const fs = await import("fs");
+  const { system: sys } = await import("@/data/module/system/index");
 
   const CACHE_DIR = path.join(process.cwd(), ".caches/e621-api/palette");
 
@@ -24,8 +25,10 @@ const logic = async (opt: Input): Promise<string[]> => {
 
   try {
     const cachedData = fs.readFileSync(cachePath, "utf-8");
+    sys.logOut("e621-api/palette", `[Cache Hit] Read from disk: ${opt.url}`);
     return JSON.parse(cachedData);
   } catch (err) {
+    sys.logOut("e621-api/palette", `[Cache Miss] Fetching new data: ${opt.url}`);
   }
 
   try {

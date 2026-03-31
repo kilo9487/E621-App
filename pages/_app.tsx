@@ -39,7 +39,8 @@ const inalFt = {
 export let _app: {
   disableColor: () => boolean;
   enableColor: () => boolean;
-  toggleColor: () => boolean;
+  toggleColor: (sta?: boolean) => boolean;
+  hideColorPanel: (sta?: boolean) => boolean;
   setColor: (color: string) => Object;
   setColor2: (color: string) => Object;
   informalFunction: {
@@ -54,6 +55,7 @@ export let _app: {
   disableColor: () => false,
   enableColor: () => false,
   toggleColor: () => false,
+  hideColorPanel: () => false,
   setColor: () => ({ R: 0, G: 0, B: 0 }),
   setColor2: () => ({ R: 0, G: 0, B: 0 }),
   informalFunction: {
@@ -1391,6 +1393,7 @@ function MyApp({ Component, pageProps }: AppProps) {
 
   /* ColorControCenter */
   const [clrCtrlCntr, setClrCtrlCntr] = useState<boolean>(true)
+  const [hidCtrlCntr, setHidCtrlCntr] = useState<boolean>(false)
 
   const [color, setColor] = useState<string>("#ffffff")
   const [color2, setColor2] = useState<string>("#ffffff")
@@ -1810,6 +1813,12 @@ function MyApp({ Component, pageProps }: AppProps) {
       setClrCtrlCntr(e => !e)
       return !clrCtrlCntr
     },
+
+    hideColorPanel(sta?: boolean) {
+      let stat: boolean = sta ?? false
+      setHidCtrlCntr(e => { stat = sta ?? !e; return stat })
+      return stat
+    },
     setColor: function (color: string) {
       setColor(color)
       return colormgr.hexToRgb(color)
@@ -1928,7 +1937,7 @@ function MyApp({ Component, pageProps }: AppProps) {
         </div>
 
 
-        <div id={style["ColorControCenter"]} className={clrCtrlCntr ? "" : style["Disable"]}>
+        <div id={style["ColorControCenter"]} className={clrCtrlCntr ? "" : style["Disable"]} style={{ display: hidCtrlCntr ? "none" : "" }}>
           <div className={style["DisableText"]}>
             {"THE COLOR SETTING IS DISABLE"}
           </div>

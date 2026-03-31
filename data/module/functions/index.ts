@@ -213,6 +213,16 @@ export default {
       return str.toLowerCase().replace(/\b[a-z]/g, function (letter) {
         return letter.toUpperCase();
       });
-    }
+    },
+    mulit_with: (type: "end" | "start", fixs: string[], target: string) => {
+      return fixs.some(fix => {
+        switch (type) {
+          case "end": return target.endsWith(fix)
+          case "start": return target.startsWith(fix)
+        }
+      })
+    },
+    mulitStartWith: function (fixs: string[], target: string) { return this.mulit_with("start", fixs, target) },
+    mulitEndWith: function (fixs: string[], target: string) { return this.mulit_with("end", fixs, target) },
   },
 }

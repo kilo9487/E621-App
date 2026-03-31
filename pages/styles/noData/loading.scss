@@ -19,9 +19,6 @@
       @include FlexCenter2();
 
       .Scale {
-        transform: scale(0);
-        opacity: 0;
-        filter: blur(10px);
 
         .Mri {
           .C {
@@ -32,6 +29,12 @@
             animation: linear LoadingRotate;
             animation-iteration-count: infinite;
           }
+        }
+
+        @starting-style {
+          transform: scale(0);
+          opacity: 0;
+          filter: blur(10px);
         }
       }
 
@@ -59,7 +62,6 @@
     background-color: Color();
     transform: skewX($skew) scaleX($scale);
     $cerTransform: skewX(calc(-1 * $skew)) scaleX(calc(1 / $scale));
-    opacity: 0;
 
     >.Cers {
       z-index: 1;
@@ -90,22 +92,9 @@
         border-color: Color(.5) !important;
       }
     }
-  }
 
-  &.START {
-    .Cers {
-      .cer {
-        .Scale {
-          filter: none;
-          opacity: 1;
-          transform: scale(1);
-          transition: 2s cubic-bezier(0, 1, 0, 1);
-        }
-      }
-    }
-
-    .Line {
-      opacity: 1;
+    @starting-style {
+      opacity: 0;
     }
   }
 }

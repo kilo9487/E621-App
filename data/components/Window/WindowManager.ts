@@ -2,12 +2,19 @@ import React from "react";
 import { createRoot, Root } from "react-dom/client";
 import Window, { WindowProps, WindowRect } from "./Window";
 import functions from "@/data/module/functions";
+
 export type SnapPosition = "top" | "left" | "right" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+export type WindowAnchor =
+  | "top-left" | "top-center" | "top-right"
+  | "center-left" | "center-center" | "center-right"
+  | "bottom-left" | "bottom-center" | "bottom-right";
 
 export type WindowManagerEventMap<T> = {
   "create": { id: string; customData?: T };
   "close": { id: string };
   "focus": { id: string };
+  "blur": { id: string };
   "moveStart": { id: string; rect?: WindowRect };
   "move": { id: string; rect?: WindowRect };
   "moveEnd": { id: string; rect?: WindowRect };
@@ -17,6 +24,9 @@ export type WindowManagerEventMap<T> = {
   "idupdate": { originalID: string; newID: string };
   "snapPreview": { id: string; snapPosition: SnapPosition | null };
   "snapEnd": { id: string; snapPosition: SnapPosition };
+  "btn-min": { id: string; preventDefault: () => void };
+  "btn-max": { id: string; preventDefault: () => void };
+  "btn-close": { id: string; preventDefault: () => void };
 };
 
 export type WindowSnapshot<T = undefined> = {
@@ -40,7 +50,7 @@ export type WindowInstance<T = undefined> = WindowSnapshot<T> & {
   update: (options: UpdateWindowOptions<T>) => void;
   setTitle: (title: string) => void;
   setData: (data: T) => void;
-  setRect: (rect: Partial<WindowRect>, type?: "%" | "px") => void;
+  setRect: (rect: Partial<WindowRect>, type?: "%" | "px", anchor?: WindowAnchor) => void;
   focus: () => void;
   minimize: () => void;
   toggleMaximize: () => void;
@@ -57,6 +67,7 @@ export type UpdateWindowOptions<T> = {
   rect?: Partial<WindowRect>;
   customData?: T;
   type?: "%" | "px";
+  anchor?: WindowAnchor;
 };
 
 type WindowState<T> = {
@@ -66,6 +77,7 @@ type WindowState<T> = {
   focused: boolean;
   isMinimized: boolean;
   isMaximized: boolean;
+  isSnapped: boolean;
   preMaximizedRect?: WindowRect;
   root: Root;
   element: HTMLDivElement;
@@ -84,10 +96,12 @@ export type CreateWindowOptions<T> = {
   left?: number;
   top?: number;
   customData?: T;
+  anchor?: WindowAnchor;
   actions?: {
     canMinimize?: boolean
     canMaximize?: boolean
     canResize?: boolean
+    canClose?: boolean
   }
   events?: {
     onClose?: () => void
@@ -99,8 +113,8 @@ export class WindowManager<T = undefined> {
   private windows: WindowState<T>[] = [];
   private highestZIndex = 10;
   private subscribers: Set<(windows: WindowState<T>[]) => void> = new Set();
-  private focusHistory: string[] = [];
   private eventListeners: { [K in keyof WindowManagerEventMap<T>]?: Set<(data: WindowManagerEventMap<T>[K]) => void> } = {};
+  private focusHistory: string[] = [];
 
   private readonly CLOSE_ANIMATION_DURATION = 200;
   private readonly DEFAULT_WIDTH = 800;
@@ -118,6 +132,27 @@ export class WindowManager<T = undefined> {
     }
   }
 
+  public translateFromAnchor = (
+    x: number, y: number, width: number, height: number, anchor: WindowAnchor
+  ): { left: number; top: number } => {
+    let left = x;
+    let top = y;
+
+    if (anchor === "top-center" || anchor === "center-center" || anchor === "bottom-center") {
+      left -= width / 2;
+    } else if (anchor === "top-right" || anchor === "center-right" || anchor === "bottom-right") {
+      left -= width;
+    }
+
+    if (anchor === "center-left" || anchor === "center-center" || anchor === "center-right") {
+      top -= height / 2;
+    } else if (anchor === "bottom-left" || anchor === "bottom-center" || anchor === "bottom-right") {
+      top -= height;
+    }
+
+    return { left, top };
+  };
+
   public getContainerBounds = (): DOMRect => {
     return this.container.getBoundingClientRect();
   }
@@ -125,9 +160,15 @@ export class WindowManager<T = undefined> {
   public globalToLocal = (clientX: number, clientY: number) => {
     const bounds = this.getContainerBounds();
 
+    let scaleX = this.container.offsetWidth ? bounds.width / this.container.offsetWidth : 1;
+    let scaleY = this.container.offsetHeight ? bounds.height / this.container.offsetHeight : 1;
+
+    if (scaleX === 0) scaleX = 1;
+    if (scaleY === 0) scaleY = 1;
+
     return {
-      left: clientX - bounds.left,
-      top: clientY - bounds.top
+      left: (clientX - bounds.left) / scaleX,
+      top: (clientY - bounds.top) / scaleY
     };
   }
 
@@ -177,11 +218,24 @@ export class WindowManager<T = undefined> {
     this.eventListeners[event]?.forEach((listener) => listener(data));
   };
 
+  public notifyBtnEvent = (id: string, type: "min" | "max" | "close"): boolean => {
+    let prevented = false;
+    const data = {
+      id,
+      preventDefault: () => { prevented = true; }
+    };
+
+    if (type === "min") this.emit("btn-min", data as any);
+    if (type === "max") this.emit("btn-max", data as any);
+    if (type === "close") this.emit("btn-close", data as any);
+
+    return prevented;
+  };
+
   public getContainerMetrics = () => {
-    const rect = this.container.getBoundingClientRect();
     return {
-      width: rect.width,
-      height: rect.height
+      width: this.container.offsetWidth || 1,
+      height: this.container.offsetHeight || 1
     };
   };
 
@@ -207,34 +261,23 @@ export class WindowManager<T = undefined> {
     }
 
     win.isMaximized = false;
+    win.isSnapped = true;
     let rect: WindowRect;
 
     switch (position) {
-      case "left":
-        rect = { left: 0, top: 0, width: 50, height: 100 }; break;
-      case "right":
-        rect = { left: 50, top: 0, width: 50, height: 100 }; break;
-      case "top-left":
-        rect = { left: 0, top: 0, width: 50, height: 50 }; break;
-      case "bottom-left":
-        rect = { left: 0, top: 50, width: 50, height: 50 }; break;
-      case "top-right":
-        rect = { left: 50, top: 0, width: 50, height: 50 }; break;
-      case "bottom-right":
-        rect = { left: 50, top: 50, width: 50, height: 50 }; break;
+      case "left": rect = { left: 0, top: 0, width: 50, height: 100 }; break;
+      case "right": rect = { left: 50, top: 0, width: 50, height: 100 }; break;
+      case "top-left": rect = { left: 0, top: 0, width: 50, height: 50 }; break;
+      case "bottom-left": rect = { left: 0, top: 50, width: 50, height: 50 }; break;
+      case "top-right": rect = { left: 50, top: 0, width: 50, height: 50 }; break;
+      case "bottom-right": rect = { left: 50, top: 50, width: 50, height: 50 }; break;
       default: return;
     }
     this.updateWindow(id, { rect });
   };
 
-  public notifyMoveStart = (id: string, rect?: WindowRect) => {
-    this.emit("moveStart", { id, rect });
-  };
-
-  public notifyMove = (id: string, rect?: WindowRect) => {
-    this.emit("move", { id, rect });
-  };
-
+  public notifyMoveStart = (id: string, rect?: WindowRect) => { this.emit("moveStart", { id, rect }); };
+  public notifyMove = (id: string, rect?: WindowRect) => { this.emit("move", { id, rect }); };
   public notifyMoveEnd = (id: string) => {
     this.syncWindowRect(id);
     const win = this.windows.find((w) => w.id === id);
@@ -244,17 +287,12 @@ export class WindowManager<T = undefined> {
     this.emit("moveEnd", { id, rect: win?.currentProps.rect });
   };
 
-  public notifyResizeStart = (id: string, rect?: WindowRect) => {
-    this.emit("resizeStart", { id, rect });
-  };
-
-  public notifyResize = (id: string, rect?: WindowRect) => {
-    this.emit("resize", { id, rect });
-  };
-
+  public notifyResizeStart = (id: string, rect?: WindowRect) => { this.emit("resizeStart", { id, rect }); };
+  public notifyResize = (id: string, rect?: WindowRect) => { this.emit("resize", { id, rect }); };
   public notifyResizeEnd = (id: string) => {
-    this.syncWindowRect(id);
     const win = this.windows.find((w) => w.id === id);
+    if (win) win.isSnapped = false;
+    this.syncWindowRect(id);
     if (win && !win.isMinimized && !win.isClosing) {
       this.updateWindow(id, { rect: win.currentProps.rect });
     }
@@ -264,9 +302,7 @@ export class WindowManager<T = undefined> {
   public subscribe = (callback: (windows: WindowState<T>[]) => void): (() => void) => {
     this.subscribers.add(callback);
     callback(this.windows);
-    return () => {
-      this.subscribers.delete(callback);
-    };
+    return () => { this.subscribers.delete(callback); };
   };
 
   private notify = () => {
@@ -286,9 +322,7 @@ export class WindowManager<T = undefined> {
 
   public getWindows = (): { id: string; title: string; customData?: T }[] => {
     return this.windows.map((w) => ({
-      id: w.id,
-      title: w.title,
-      customData: w.customData,
+      id: w.id, title: w.title, customData: w.customData,
     }));
   };
 
@@ -322,25 +356,22 @@ export class WindowManager<T = undefined> {
       ) => {
         const filteredListener = (data: WindowManagerEventMap<T>[K]) => {
           const payload = data as any;
-
-          if (payload.id === id) {
-            listener(data);
-            return;
-          }
-
-          if (payload.originalID === id) {
+          if (payload.id === id || payload.originalID === id) {
             listener(data);
             return;
           }
         };
-
         this.addEventListener(event, filteredListener);
         return () => this.removeEventListener(event, filteredListener);
       },
       update: (options) => this.updateWindow(id, options),
       setTitle: (title) => this.updateWindow(id, { title }),
       setData: (data) => this.updateWindow(id, { customData: data }),
-      setRect: (rect, type = "%") => this.updateWindow(id, { rect: { ...rect, top: rect.top !== undefined ? functions.clamp(rect.top, 0, Infinity) : undefined }, type }),
+      setRect: (rect, type = "%", anchor = "top-left") => this.updateWindow(id, {
+        rect: { ...rect, top: rect.top !== undefined ? functions.clamp(rect.top, 0, Infinity) : undefined },
+        type,
+        anchor
+      }),
       focus: () => this.bringToFront(id),
       minimize: () => this.minimizeWindow(id),
       toggleMaximize: () => this.toggleMaximize(id),
@@ -353,18 +384,10 @@ export class WindowManager<T = undefined> {
 
   public captureSnapshot = (): WindowSnapshot<T>[] => {
     return this.windows.map((w) => {
-      const currentRect = this.getCurrentRect(w);
-
       return {
-        id: w.id,
-        title: w.title,
-        rect: currentRect,
-        zIndex: w.zIndex,
-        isMinimized: w.isMinimized,
-        isMaximized: w.isMaximized,
-        isTop: w.focused,
-        isFocused: w.focused,
-        customData: w.customData,
+        id: w.id, title: w.title, rect: this.getCurrentRect(w),
+        zIndex: w.zIndex, isMinimized: w.isMinimized, isMaximized: w.isMaximized,
+        isTop: w.focused, isFocused: w.focused, customData: w.customData,
       };
     });
   };
@@ -378,7 +401,6 @@ export class WindowManager<T = undefined> {
     }
 
     const { width: containerW, height: containerH } = this.getContainerMetrics();
-
     return {
       left: this.pxToPct(node.offsetLeft, containerW),
       top: this.pxToPct(node.offsetTop, containerH),
@@ -395,6 +417,8 @@ export class WindowManager<T = undefined> {
     if (updates.customData !== undefined) win.customData = updates.customData;
 
     let updateRect = updates.rect;
+    const anchor = updates.anchor || "top-left";
+
     if (updates.type === "px" && updateRect) {
       const { width: cW, height: cH } = this.getContainerMetrics();
       const convertedRect: Partial<WindowRect> = {};
@@ -416,6 +440,14 @@ export class WindowManager<T = undefined> {
       height: updateRect?.height ?? currentRect.height,
     };
 
+    if (updateRect && anchor !== "top-left") {
+      const translated = this.translateFromAnchor(
+        newRect.left, newRect.top, newRect.width, newRect.height, anchor
+      );
+      if (updateRect.left !== undefined) newRect.left = translated.left;
+      if (updateRect.top !== undefined) newRect.top = translated.top;
+    }
+
     const newProps: WindowProps = {
       ...win.currentProps,
       rect: newRect,
@@ -436,45 +468,27 @@ export class WindowManager<T = undefined> {
 
   public updateWindowID = (currentID: string, newID: string): boolean => {
     if (currentID === newID) return true;
-    if (this.hasWindowID(newID)) {
-      console.warn(`WindowManager: Cannot update ID. Target ID "${newID}" already exists.`);
-      return false;
-    }
+    if (this.hasWindowID(newID)) return false;
 
     const win = this.windows.find((w) => w.id === currentID);
-    if (!win) {
-      console.warn(`WindowManager: Cannot update ID. Window "${currentID}" not found.`);
-      return false;
-    }
+    if (!win) return false;
 
     win.id = newID;
-
-    if (win.element) {
-      win.element.id = newID;
-    }
+    if (win.element) win.element.id = newID;
 
     const newProps = {
-      ...win.currentProps,
-      manager: this,
-      windowId: newID,
+      ...win.currentProps, manager: this, windowId: newID,
       onClose: (winId: string) => this.closeWindow(winId),
     };
 
-    win.currentProps = {
-      ...win.currentProps,
-      windowId: newID
-    };;
+    win.currentProps = { ...win.currentProps, windowId: newID };
     win.root.render(React.createElement(Window, newProps));
 
     const historyIndex = this.focusHistory.indexOf(currentID);
-    if (historyIndex !== -1) {
-      this.focusHistory[historyIndex] = newID;
-    }
+    if (historyIndex !== -1) this.focusHistory[historyIndex] = newID;
 
     this.emit("idupdate", { originalID: currentID, newID: newID });
-
     this.notify();
-
     return true;
   };
 
@@ -496,9 +510,7 @@ export class WindowManager<T = undefined> {
   ): void => {
     const snapshotIds = new Set(snapshot.map(s => s.id));
     [...this.windows].forEach(w => {
-      if (!snapshotIds.has(w.id)) {
-        this.closeWindow(w.id);
-      }
+      if (!snapshotIds.has(w.id)) this.closeWindow(w.id);
     });
 
     this.focusHistory = [];
@@ -506,22 +518,13 @@ export class WindowManager<T = undefined> {
 
     snapshot.forEach(snap => {
       let win = this.windows.find(w => w.id === snap.id);
-
       if (win) {
-        this.updateWindow(snap.id, {
-          title: snap.title,
-          rect: snap.rect,
-          customData: snap.customData,
-        });
+        this.updateWindow(snap.id, { title: snap.title, rect: snap.rect, customData: snap.customData });
       } else {
         this.createWindow({
-          id: snap.id,
-          title: snap.title,
-          rect: snap.rect,
-          customData: snap.customData,
-          children: contentFactory(snap.id, snap.customData),
+          id: snap.id, title: snap.title, rect: snap.rect,
+          customData: snap.customData, children: contentFactory(snap.id, snap.customData),
         }, true);
-
         win = this.windows.find(w => w.id === snap.id);
       }
 
@@ -529,21 +532,13 @@ export class WindowManager<T = undefined> {
         win.isMinimized = snap.isMinimized;
         win.zIndex = snap.zIndex;
         win.isMaximized = snap.isMaximized;
-
-        if (snap.isMinimized) {
-          win.focused = false;
-        } else {
-          win.focused = snap.isFocused;
-        }
-
+        win.focused = snap.isMinimized ? false : snap.isFocused;
         if (win.zIndex > maxZ) maxZ = win.zIndex;
-
         this.focusHistory.push(win.id);
       }
     });
 
     this.highestZIndex = maxZ;
-
     this.focusHistory.sort((idA, idB) => {
       const wA = this.windows.find(w => w.id === idA);
       const wB = this.windows.find(w => w.id === idB);
@@ -556,54 +551,40 @@ export class WindowManager<T = undefined> {
   public toggleMaximize = (id: string) => {
     const win = this.windows.find(w => w.id === id);
     if (!win || win.isClosing || win.isMinimized) return;
-
-    if (win.isMaximized) {
-      this.restoreWindow(id);
-    } else {
-      this.maximizeWindow(id);
-    }
+    if (win.isMaximized) this.restoreWindow(id);
+    else this.maximizeWindow(id);
   }
 
   public maximizeWindow = (id: string) => {
     const win = this.windows.find(w => w.id === id);
     if (!win) return;
-
     win.preMaximizedRect = { ...win.currentProps.rect };
-
     win.isMaximized = true;
-
-    this.updateWindow(id, {
-      rect: { left: 0, top: 0, width: 100, height: 100 }
-    });
+    win.isSnapped = false;
+    this.updateWindow(id, { rect: { left: 0, top: 0, width: 100, height: 100 } });
   }
 
   public restoreWindow = (id: string, targetRect?: WindowRect) => {
     const win = this.windows.find(w => w.id === id);
     if (!win) return;
-
     const restoreTo = targetRect || win.preMaximizedRect || { left: 10, top: 10, width: 50, height: 50 };
-
     win.isMaximized = false;
+    win.isSnapped = false;
     win.preMaximizedRect = undefined;
-
     this.updateWindow(id, { rect: restoreTo });
   }
 
   public minimizeWindow = (id: string): void => {
     const win = this.windows.find((w) => w.id === id);
     if (win && !win.isClosing) {
-      if (!win.isMinimized) {
-        const currentRect = this.getCurrentRect(win);
-        win.currentProps.rect = currentRect;
-      }
+      if (!win.isMinimized) win.currentProps.rect = this.getCurrentRect(win);
       const wasFocused = win.focused;
       win.isMinimized = true;
       win.focused = false;
       this.notify();
       if (wasFocused) {
-        setTimeout(() => {
-          this.focusNextActiveWindow(id);
-        }, this.CLOSE_ANIMATION_DURATION);
+        this.emit("blur", { id: win.id });
+        setTimeout(() => { this.focusNextActiveWindow(id); }, this.CLOSE_ANIMATION_DURATION);
       }
     }
   };
@@ -612,17 +593,23 @@ export class WindowManager<T = undefined> {
     const windowToClose = this.windows.find((w) => w.id === id);
     if (!windowToClose || windowToClose.isClosing) return;
 
+    if (windowToClose.focused) {
+      windowToClose.focused = false;
+      this.emit("blur", { id });
+    }
+
     windowToClose.isClosing = true;
     this.notify();
 
-    setTimeout(() => {
-      this._finalizeDestroy(id);
-    }, this.CLOSE_ANIMATION_DURATION);
+    setTimeout(() => { this._finalizeDestroy(id); }, this.CLOSE_ANIMATION_DURATION);
+  };
+
+  public destroyWindow = (id: string): void => {
+    this._finalizeDestroy(id);
   };
 
   private getSmartPositionPixels = (widthPx: number, heightPx: number): { left: number, top: number } => {
     const { width: containerW, height: containerH } = this.getContainerMetrics();
-
     let left = Math.max(0, (containerW - widthPx) / 2);
     let top = Math.max(0, (containerH - heightPx) / 2);
 
@@ -630,56 +617,39 @@ export class WindowManager<T = undefined> {
       .filter(w => !w.isMinimized && !w.isClosing)
       .map(w => {
         const winNode = w.element.firstElementChild as HTMLElement;
-        if (winNode) {
-          return { left: winNode.offsetLeft, top: winNode.offsetTop };
-        }
-        return null;
-      })
-      .filter((r): r is { left: number; top: number } => r !== null);
-
-    const OFFSET = 40;
-    const RESET_POS = 60;
-    const CONFLICT_THRESHOLD = 20;
+        return winNode ? { left: winNode.offsetLeft, top: winNode.offsetTop } : null;
+      }).filter((r): r is { left: number; top: number } => r !== null);
 
     let hasConflict = true;
     let loopCount = 0;
-    const MAX_LOOPS = 50;
 
-    while (hasConflict && loopCount < MAX_LOOPS) {
+    while (hasConflict && loopCount < 50) {
       loopCount++;
       hasConflict = false;
       for (const rect of existingRects) {
-        if (
-          Math.abs(rect.left - left) < CONFLICT_THRESHOLD &&
-          Math.abs(rect.top - top) < CONFLICT_THRESHOLD
-        ) {
+        if (Math.abs(rect.left - left) < 20 && Math.abs(rect.top - top) < 20) {
           hasConflict = true;
           break;
         }
       }
       if (hasConflict) {
-        left += OFFSET;
-        top += OFFSET;
-
+        left += 40; top += 40;
         if (top + heightPx > containerH || left + widthPx > containerW) {
-          left = RESET_POS;
-          top = RESET_POS;
+          left = 60; top = 60;
         }
       }
     }
-
     return { left, top };
   };
 
   public createWindow = (options: CreateWindowOptions<T>, suppressFocus = false): string => {
     const { id, title = "Window", children, actions, events, customData } = options;
+    const anchor = options.anchor || "top-left";
 
     if (this.hasWindowID(id)) {
       const existingWin = this.windows.find(w => w.id === id);
       if (existingWin) {
-        if (existingWin.isMinimized) {
-          existingWin.isMinimized = false;
-        }
+        if (existingWin.isMinimized) existingWin.isMinimized = false;
         this.bringToFront(id);
       }
       return id;
@@ -688,17 +658,22 @@ export class WindowManager<T = undefined> {
     const windowElement = document.createElement("div");
     windowElement.id = id;
     this.container.appendChild(windowElement);
-
     const root = createRoot(windowElement);
 
     let finalWindowRect: WindowRect;
 
     if (options.rect) {
       finalWindowRect = { ...options.rect };
-    }
-    else {
-      const { width: containerW, height: containerH } = this.getContainerMetrics();
 
+      if (anchor !== "top-left") {
+        const translated = this.translateFromAnchor(
+          finalWindowRect.left, finalWindowRect.top, finalWindowRect.width, finalWindowRect.height, anchor
+        );
+        finalWindowRect.left = translated.left;
+        finalWindowRect.top = translated.top;
+      }
+    } else {
+      const { width: containerW, height: containerH } = this.getContainerMetrics();
 
       const targetW = options.width ?? this.DEFAULT_WIDTH;
       const targetH = options.height ?? this.DEFAULT_HEIGHT;
@@ -709,150 +684,142 @@ export class WindowManager<T = undefined> {
       let finalPixelTop: number;
 
       if (options.left !== undefined && options.top !== undefined) {
-        finalPixelLeft = options.left;
-        finalPixelTop = options.top;
+        const translated = this.translateFromAnchor(
+          options.left, options.top, finalPixelW, finalPixelH, anchor
+        );
+        finalPixelLeft = translated.left;
+        finalPixelTop = translated.top;
       } else {
         const smartPos = this.getSmartPositionPixels(finalPixelW, finalPixelH);
         finalPixelLeft = smartPos.left;
         finalPixelTop = smartPos.top;
       }
 
-      if (finalPixelLeft + finalPixelW > containerW) {
-        finalPixelLeft = Math.max(0, containerW - finalPixelW);
-      }
-      if (finalPixelTop + finalPixelH > containerH) {
-        finalPixelTop = Math.max(0, containerH - finalPixelH);
-      }
+      if (finalPixelLeft + finalPixelW > containerW) finalPixelLeft = Math.max(0, containerW - finalPixelW);
+      if (finalPixelTop + finalPixelH > containerH) finalPixelTop = Math.max(0, containerH - finalPixelH);
 
       finalWindowRect = {
-        width: this.pxToPct(finalPixelW, containerW),
-        height: this.pxToPct(finalPixelH, containerH),
-        left: this.pxToPct(finalPixelLeft, containerW),
-        top: this.pxToPct(finalPixelTop, containerH)
+        width: this.pxToPct(finalPixelW, containerW), height: this.pxToPct(finalPixelH, containerH),
+        left: this.pxToPct(finalPixelLeft, containerW), top: this.pxToPct(finalPixelTop, containerH)
       };
     }
 
-    if (finalWindowRect.left + finalWindowRect.width > 100) {
-      finalWindowRect.left = Math.max(0, 100 - finalWindowRect.width);
-    }
-    if (finalWindowRect.top + finalWindowRect.height > 100) {
-      finalWindowRect.top = Math.max(0, 100 - finalWindowRect.height);
-    }
+    if (finalWindowRect.left + finalWindowRect.width > 100) finalWindowRect.left = Math.max(0, 100 - finalWindowRect.width);
+    if (finalWindowRect.top + finalWindowRect.height > 100) finalWindowRect.top = Math.max(0, 100 - finalWindowRect.height);
     if (finalWindowRect.left < 0) finalWindowRect.left = 0;
     if (finalWindowRect.top < 0) finalWindowRect.top = 0;
 
     const props: WindowProps = {
-      windowId: id,
-      title,
-      children: children,
-      manager: this,
+      windowId: id, title, children: children, manager: this,
       onClose: (id) => { this.closeWindow?.(id); events?.onClose?.() },
-      actions,
-      rect: finalWindowRect,
+      actions, rect: finalWindowRect,
     };
 
     const newWindow: WindowState<T> = {
-      id: id,
-      title: title,
-      zIndex: 0,
-      focused: false,
-      isMinimized: false,
-      isMaximized: false,
-      root,
-      element: windowElement,
-      isClosing: false,
-      customData: customData,
+      id: id, title: title, zIndex: 0, focused: false,
+      isMinimized: false, isMaximized: false, isSnapped: false, root,
+      element: windowElement, isClosing: false, customData: customData,
       currentProps: props,
     };
     this.windows.push(newWindow);
 
     root.render(React.createElement(Window, props));
-    this.bringToFront(id);
 
-    if (!suppressFocus) {
-      this.bringToFront(id);
-    } else {
-      this.focusHistory.push(id);
-    }
+    if (!suppressFocus) this.bringToFront(id);
+    else this.focusHistory.push(id);
 
     this.emit("create", { id, customData });
-
     return id;
   };
 
   public getSnapDelta = (
-    id: string,
-    rect: { left: number; top: number; width: number; height: number },
-    action: string
+    id: string, rect: { left: number; top: number; width: number; height: number }, action: string, ctrlKey = false
   ): { x: number; y: number } => {
-    let snapX = 0;
-    let snapY = 0;
-    let minDiffX = this.SNAP_THRESHOLD + 1;
-    let minDiffY = this.SNAP_THRESHOLD + 1;
+    // Ctrl held → disable all window-to-window snapping
+    if (ctrlKey) return { x: 0, y: 0 };
 
-    const { width: cW, height: cH } = this.getContainerMetrics();
+    let snapX = 0; let snapY = 0;
+    let minDiffX = this.SNAP_THRESHOLD + 1; let minDiffY = this.SNAP_THRESHOLD + 1;
+
     const targets = this.windows
       .filter((w) => w.id !== id && !w.isMinimized && !w.isClosing && w.element)
       .map((w) => {
         const node = w.element.firstElementChild as HTMLElement;
         if (!node) return null;
         return {
-          left: node.offsetLeft,
-          top: node.offsetTop,
-          right: node.offsetLeft + node.offsetWidth,
-          bottom: node.offsetTop + node.offsetHeight,
-          centerX: node.offsetLeft + node.offsetWidth / 2,
-          centerY: node.offsetTop + node.offsetHeight / 2,
+          left: node.offsetLeft, top: node.offsetTop,
+          right: node.offsetLeft + node.offsetWidth, bottom: node.offsetTop + node.offsetHeight,
         };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
 
-    const current = {
-      left: rect.left,
-      top: rect.top,
-      right: rect.left + rect.width,
-      bottom: rect.top + rect.height,
-    };
-
+    const current = { left: rect.left, top: rect.top, right: rect.left + rect.width, bottom: rect.top + rect.height };
     const isMove = action === "move" || action === "alt-move";
     const activeLeft = isMove || action.includes("w");
     const activeRight = isMove || action.includes("e");
     const activeTop = isMove || action.includes("n");
     const activeBottom = isMove || action.includes("s");
 
+    // Step 1: Snap adjacent edges only (edge-to-edge when touching, no overlap/gap snapping)
     targets.forEach((target) => {
       if (activeLeft) {
-        const diff1 = target.right - current.left;
-        if (Math.abs(diff1) < Math.abs(minDiffX)) { minDiffX = diff1; snapX = diff1; }
-
-        const diff2 = target.left - current.left;
-        if (Math.abs(diff2) < Math.abs(minDiffX)) { minDiffX = diff2; snapX = diff2; }
+        // current.left → target.right: place current flush to the right of target
+        const diff = target.right - current.left;
+        if (Math.abs(diff) < Math.abs(minDiffX)) { minDiffX = diff; snapX = diff; }
       }
-
       if (activeRight) {
-        const diff1 = target.left - current.right;
-        if (Math.abs(diff1) < Math.abs(minDiffX)) { minDiffX = diff1; snapX = diff1; }
-
-        const diff2 = target.right - current.right;
-        if (Math.abs(diff2) < Math.abs(minDiffX)) { minDiffX = diff2; snapX = diff2; }
+        // current.right → target.left: place current flush to the left of target
+        const diff = target.left - current.right;
+        if (Math.abs(diff) < Math.abs(minDiffX)) { minDiffX = diff; snapX = diff; }
       }
-
       if (activeTop) {
-        const diff1 = target.bottom - current.top;
-        if (Math.abs(diff1) < Math.abs(minDiffY)) { minDiffY = diff1; snapY = diff1; }
-
-        const diff2 = target.top - current.top;
-        if (Math.abs(diff2) < Math.abs(minDiffY)) { minDiffY = diff2; snapY = diff2; }
+        // current.top → target.bottom: place current flush below target
+        const diff = target.bottom - current.top;
+        if (Math.abs(diff) < Math.abs(minDiffY)) { minDiffY = diff; snapY = diff; }
       }
-
       if (activeBottom) {
-        const diff1 = target.top - current.bottom;
-        if (Math.abs(diff1) < Math.abs(minDiffY)) { minDiffY = diff1; snapY = diff1; }
-
-        const diff2 = target.bottom - current.bottom;
-        if (Math.abs(diff2) < Math.abs(minDiffY)) { minDiffY = diff2; snapY = diff2; }
+        // current.bottom → target.top: place current flush above target
+        const diff = target.top - current.bottom;
+        if (Math.abs(diff) < Math.abs(minDiffY)) { minDiffY = diff; snapY = diff; }
       }
     });
+
+    // Step 2: Corner alignment — when one axis is already within snap range,
+    // try aligning corners on the other axis (角貼角)
+    const xSnapping = Math.abs(minDiffX) <= this.SNAP_THRESHOLD;
+    const ySnapping = Math.abs(minDiffY) <= this.SNAP_THRESHOLD;
+
+    if (xSnapping && isMove && !ySnapping) {
+      // X edge is snapping: align Y corners (top-to-top or bottom-to-bottom)
+      let minCornerY = this.SNAP_THRESHOLD + 1;
+      let cornerSnapY = 0;
+      targets.forEach((target) => {
+        const d1 = target.top - current.top;
+        if (Math.abs(d1) < Math.abs(minCornerY)) { minCornerY = d1; cornerSnapY = d1; }
+        const d2 = target.bottom - current.bottom;
+        if (Math.abs(d2) < Math.abs(minCornerY)) { minCornerY = d2; cornerSnapY = d2; }
+      });
+      if (Math.abs(minCornerY) <= this.SNAP_THRESHOLD) {
+        snapY = cornerSnapY;
+        minDiffY = minCornerY;
+      }
+    }
+
+    if (ySnapping && isMove && !xSnapping) {
+      // Y edge is snapping: align X corners (left-to-left or right-to-right)
+      let minCornerX = this.SNAP_THRESHOLD + 1;
+      let cornerSnapX = 0;
+      targets.forEach((target) => {
+        const d1 = target.left - current.left;
+        if (Math.abs(d1) < Math.abs(minCornerX)) { minCornerX = d1; cornerSnapX = d1; }
+        const d2 = target.right - current.right;
+        if (Math.abs(d2) < Math.abs(minCornerX)) { minCornerX = d2; cornerSnapX = d2; }
+      });
+      if (Math.abs(minCornerX) <= this.SNAP_THRESHOLD) {
+        snapX = cornerSnapX;
+        minDiffX = minCornerX;
+      }
+    }
 
     if (Math.abs(minDiffX) > this.SNAP_THRESHOLD) snapX = 0;
     if (Math.abs(minDiffY) > this.SNAP_THRESHOLD) snapY = 0;
@@ -865,16 +832,11 @@ export class WindowManager<T = undefined> {
     if (windowIndex === -1) return;
     const windowToDestroy = this.windows[windowIndex];
     windowToDestroy.root.unmount();
-    if (this.container.contains(windowToDestroy.element)) {
-      this.container.removeChild(windowToDestroy.element);
-    }
+    if (this.container.contains(windowToDestroy.element)) this.container.removeChild(windowToDestroy.element);
     this.windows.splice(windowIndex, 1);
     this.focusHistory = this.focusHistory.filter((historyId) => historyId !== id);
-    if (this.windows.length > 0) {
-      this.focusNextActiveWindow(id);
-    } else {
-      this.highestZIndex = 10;
-    }
+    if (this.windows.length > 0) this.focusNextActiveWindow(id);
+    else this.highestZIndex = 10;
     this.notify();
     this.emit("close", { id });
   };
@@ -883,9 +845,7 @@ export class WindowManager<T = undefined> {
     const windowToFocus = this.windows.find((w) => w.id === id);
     if (!windowToFocus || windowToFocus.isClosing) return;
 
-    if (windowToFocus.isMinimized) {
-      windowToFocus.isMinimized = false;
-    }
+    if (windowToFocus.isMinimized) windowToFocus.isMinimized = false;
 
     this.focusHistory = this.focusHistory.filter((historyId) => historyId !== id);
     this.focusHistory.push(id);
@@ -905,7 +865,7 @@ export class WindowManager<T = undefined> {
 
     this.windows.forEach((w) => {
       if (w.isClosing) {
-        w.focused = false;
+        if (w.focused) { w.focused = false; this.emit("blur", { id: w.id }); }
         return;
       }
       if (w.id === id) {
@@ -914,6 +874,7 @@ export class WindowManager<T = undefined> {
         if (w.focused) {
           w.focused = false;
           needsUpdate = true;
+          this.emit("blur", { id: w.id });
         }
       }
     });

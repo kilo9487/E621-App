@@ -121,8 +121,25 @@ export namespace E621 {
     post_count: number;
   }
 
+  export interface WikiPage {
+    id: number;
+    title: string;
+    body: string;
+    creator_id: number;
+    creator_name: string;
+    created_at: string;
+    updated_at: string;
+    is_locked: boolean;
+    is_deleted: boolean;
+  }
+
   export type PostsResponse = { posts: Post[] };
   export type TagsResponse = Tag[];
   export type PoolResponse = Pool;
   export type PoolsResponse = Pool[];
+
+  export interface FetchError extends Error {
+    statusCode: number;
+    upstreamBody: unknown;
+  }
 }

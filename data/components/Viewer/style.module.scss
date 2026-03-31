@@ -76,7 +76,7 @@
 
     .Tar {
       overflow: hidden;
-      transition: cubic-bezier(0, 1, 0, 1) .5s;
+      transition: none;
       @include GridFrame();
 
       * {

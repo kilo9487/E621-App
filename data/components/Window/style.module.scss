@@ -4,17 +4,18 @@
   z-index: 1;
   @include Freedom();
 
-  transform: scale(0.8);
+  transform: scale(0.7);
   opacity: 0;
 
   min-width: 600px;
   min-height: 400px;
   background-color: Color(.1, .7);
   backdrop-filter: $blur-effect;
-  border-radius: 10px;
+  border-radius: 0px;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
+  filter: blur(20px);
 
   transition: all cubic-bezier(0, 1, 0, 1) .5s, z-index 0s;
 
@@ -28,6 +29,7 @@
   &.active {
     transform: none;
     opacity: 1;
+    filter: none;
   }
 
   .title {
@@ -263,12 +265,12 @@
     height: 100% !important;
     border-radius: 0;
     background-color: Color(.08, .8);
-
   }
 
   &.close {
     transition: all cubic-bezier(.9, -0.01, .42, .99) .25s;
     transform: scale(0.9);
+    filter: blur(20px);
     opacity: 0;
     pointer-events: none;
 
@@ -284,9 +286,9 @@
   }
 
   &.minimize {
-    transform: scale(0);
-    top: 150% !important;
-    left: 0% !important;
+    transform: scale(.1) translate(-50%, -50%) !important;
+    top: 125% !important;
+    // left: 0% ;
     transition: .5s cubic-bezier(.48, .1, 0, 1);
 
     >* {
@@ -295,7 +297,7 @@
   }
 
   &.nonTransparens {
-  // & {
+    // & {
     background-color: Color(.1);
     backdrop-filter: none;
 

@@ -2,6 +2,21 @@
 @use "./styles/styles";
 
 #Frame {
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  img,
+  image,
+  video {
+    user-select: none;
+  }
+
+  input::placeholder {
+    color: Color(1, .5);
+  }
+
   @include FullDiv();
   @include GridFrame();
   overflow: hidden;
@@ -12,413 +27,806 @@
   }
 
   #Desktop {
+    $dt: cubic-bezier(0, 1, 0, 1) 1s;
     z-index: 1;
     @include GridFrame();
     overflow: hidden;
 
-    * {
-      color: Color();
-      user-select: none;
-    }
+    .workSpaceMgr {
+      z-index: 3;
+      display: grid;
+      grid-template-columns: 1fr 5fr;
+      overflow: hidden;
 
-    & {
-      button[kiase-style] {
-        outline: none;
-        border: none;
-        background-color: Color(.15);
-        gap: 5px;
-        font-size: 15px;
-        padding: 5px 20px;
+      &,
+      * {
+        pointer-events: none;
+      }
 
-        *,
-        & {
-          color: Color();
+      .menu {
+        transition: $dt;
+        background: Color(.3, .5);
+        backdrop-filter: $blur-effect;
+        transform: translateX(-120%);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: auto;
+        padding: 20px 0;
+
+        &,
+        * {
+          pointer-events: all;
         }
 
-        &.actv {
-          background-color: Color(.5);
-          text-shadow: 0 0 5px Color();
+        .workSpace {
+          display: flex;
+          flex-direction: column;
+          background-color: Color(.5, .2);
+          padding: 10px;
+          gap: 5px;
 
-          &:hover {
-            text-shadow: 0 0 5px #0008;
-          }
+          .desktopPreview {
+            border: 2px solid Color();
+            outline: none;
+            padding: 0;
+            transition: none;
+            overflow: hidden;
+            @include GridFrame();
 
-          &:active {
-            background-color: Color(.4);
-            text-shadow: 0 0 5px Color();
-          }
-        }
+            .indexNumber {
+              z-index: 4;
+              display: flex;
+              justify-content: start;
+              align-items: flex-end;
+              padding: 10px;
+              font-size: 15px;
+              text-shadow: 0 0 10px #000;
+            }
 
-        &:disabled {
+            .backdrop {
+              z-index: 3;
+              background: #00000070;
+              background: linear-gradient(45deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, .1) 30%);
+            }
 
-          &,
-          &:hover,
-          &:active {
-            pointer-events: none !important;
-            background-color: Color(.6, .1);
+            .windows {
+              z-index: 2;
+              @include GridFrame();
 
-            *,
-            & {
-              color: Color(1, .5);
+              .win {
+                .position {
+                  transition: none;
+                  position: relative;
+                  border: 1px solid #000;
+                  backdrop-filter: blur(5px);
+                }
+              }
+            }
+
+            .Background {
+              z-index: 1;
             }
           }
-        }
 
-        &:hover {
-          transition-duration: 0s;
-          background-color: Color();
+          .top {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
 
-          *,
-          & {
-            color: #000;
+            * {
+              font-size: 15px;
+              color: Color();
+
+              svg {
+                fill: Color();
+              }
+            }
+
+            input {
+              background-color: #0000;
+              border: none;
+              outline: none;
+              padding: 5px 10px;
+
+              &:hover,
+              &:focus {
+                transition: none;
+                background-color: Color(.5, .5);
+              }
+            }
+
+            button {
+              @include FlexCenter2();
+              border: none;
+              outline: none;
+              background-color: #0000;
+
+            }
+          }
+
+          &.activ {
+            background-color: Color(.5, .5);
           }
         }
 
-        &:active {
-          transition-duration: .3s;
-          background-color: Color(.5);
+        .add {
+          font-size: 15px;
+          border: none;
+          background-color: Color(.5, .5);
+          color: Color();
+          padding: 8px;
+
+          &:hover,
+          &:active {
+            transition: none;
+            background-color: Color();
+            color: #000;
+          }
+
+          &:active {
+            filter: brightness(.7);
+          }
+        }
+      }
+    }
+
+    .textArea,
+    .mainArea {
+      transform-origin: 93% 50%;
+    }
+
+    .textArea {
+      z-index: 1;
+      pointer-events: none;
+      transform: scale(.8);
+      @include GridFrame();
+
+      .name,
+      .note {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+
+        input {
+          font-size: 40px;
+          opacity: 0;
+          color: Color();
+          pointer-events: all;
+          text-align: center;
+          background: none;
+          border: none;
+          outline: none;
+          width: 100%;
+          padding: 10px;
+
+          &::placeholder {
+            opacity: .5;
+          }
+
+          &:hover,
+          &:focus {
+            transition: none;
+            background-color: Color(.5, .3);
+          }
+        }
+      }
+
+      .name {
+        align-items: flex-start;
+      }
+    }
+
+    .mainArea {
+      transition: $dt;
+      z-index: 2;
+      @include GridFrame();
+      overflow: hidden;
+      box-shadow: 0 20px 50px Color(.08, .5);
+
+      * {
+        color: Color();
+        user-select: none;
+      }
+
+      & {
+        button[kiase-style] {
+          outline: none;
+          border: none;
+          background-color: Color(.15);
+          gap: 5px;
+          font-size: 15px;
+          padding: 5px 20px;
 
           *,
           & {
             color: Color();
           }
 
-          >* {
+          &.actv {
+            background-color: Color(.5);
+            text-shadow: 0 0 5px Color();
+
+            &:hover {
+              text-shadow: 0 0 5px #0008;
+            }
+
+            &:active {
+              background-color: Color(.4);
+              text-shadow: 0 0 5px Color();
+            }
+          }
+
+          &:disabled {
+
+            &,
+            &:hover,
+            &:active {
+              pointer-events: none !important;
+              background-color: Color(.6, .1);
+
+              *,
+              & {
+                color: Color(1, .5);
+              }
+            }
+          }
+
+          &:hover {
             transition-duration: 0s;
-            opacity: .5;
+            background-color: Color();
+
+            *,
+            & {
+              color: #000;
+            }
+          }
+
+          &:active {
+            transition-duration: .3s;
+            background-color: Color(.5);
+
+            *,
+            & {
+              color: Color();
+            }
+
+            >* {
+              transition-duration: 0s;
+              opacity: .5;
+            }
           }
         }
       }
-    }
 
-    .Menu {
-      z-index: 100;
-      pointer-events: none;
-
-      .Buttons {
-        pointer-events: all;
-        transition: all DefaultTransition(),
-          transform 0s,
-          top 0s,
-          left 0s;
-        clip-path: polygon(0 0, 100% 0, 100% 100%, 0% 100%);
-        overflow: hidden;
-        @include Freedom();
-        top: 0;
-        left: 50%;
-        display: flex;
-        flex-direction: column;
-        backdrop-filter: $blur-effect-4;
-        background-color: Color(.02, .5);
-
-        button {
-          text-align: left;
-
-          *:not(:hover, :active),
-          &:not(:hover, :active) {
-            background: none !important;
-          }
-        }
-
-        & {
-          &.tl {
-            transform: translate(0%, 0%);
-
-          }
-
-          &.tc {
-            transform: translate(-50%, 0%);
-
-          }
-
-          &.tr {
-            transform: translate(-100%, 0%);
-
-          }
-
-          &.cl {
-            transform: translate(0%, -50%);
-
-          }
-
-          &.cc {
-            transform: translate(-50%, -50%);
-
-          }
-
-          &.cr {
-            transform: translate(-100%, -50%);
-
-          }
-
-          &.bl {
-            transform: translate(0%, -100%);
-
-          }
-
-          &.bc {
-            transform: translate(-50%, -100%);
-
-          }
-
-          &.br {
-            transform: translate(-100%, -100%);
-
-          }
-        }
-
-      }
-
-      &.hide {
-        pointer-events: none;
-
-        .Buttons {
-          opacity: 0;
-
-          &.tl,
-          &.tc,
-          &.tr {
-            clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
-
-          }
-
-          &.cl,
-          &.cc,
-          &.cr {
-            clip-path: polygon(0 50%, 100% 50%, 100% 50%, 50%);
-          }
-
-          &.bl,
-          &.bc,
-          &.br {
-            clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%);
-          }
-        }
-      }
-    }
-
-    .MainArea {
-      z-index: 5;
-      @include GridFrame();
-
-      .SnapPreview {
-        z-index: 100;
-        pointer-events: none;
-
-        div {
-          position: relative;
-          background-color: Color(.1, .8);
-          width: 100%;
-          height: 100%;
-          top: 0%;
-          left: 0%;
-        }
-      }
-
-      .Windows {
-        z-index: 50;
-
-        >* {
-          pointer-events: all;
-        }
-      }
-
-      .StartMenu {
-        z-index: 1;
-        opacity: 0;
-        z-index: 1000;
-        background-color: Color(.02, .8);
-        backdrop-filter: none;
+      .wsEditor {
+        z-index: 500;
         @include GridFrame();
+        pointer-events: none;
+        opacity: 0;
 
-        & {
-          pointer-events: none;
+        .backdrop {
+          z-index: 1;
+          background: #00000070;
+          background: linear-gradient(45deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0) 50%);
+
         }
 
-        .Side {
+        .index {
           z-index: 2;
           display: flex;
+          justify-content: start;
+          align-items: flex-end;
+          padding: 40px;
+          font-size: 60px;
+          text-shadow: 0 0 30px #000;
+        }
+      }
+
+      .Menu {
+        z-index: 100;
+        pointer-events: none;
+        position: absolute;
+
+        .Buttons {
+          pointer-events: all;
+          transition: all DefaultTransition(),
+            transform 0s,
+            top 0s,
+            left 0s;
+          clip-path: polygon(0 0, 100% 0, 100% 100%, 0% 100%);
+          overflow: hidden;
+          @include Freedom();
+          top: 0;
+          left: 50%;
+          display: flex;
+          flex-direction: column;
+          backdrop-filter: $blur-effect-4;
+          background-color: Color(.02, .5);
+
+          button {
+            text-align: left;
+
+            *:not(:hover, :active),
+            &:not(:hover, :active) {
+              background: none !important;
+            }
+
+            &:disabled {
+              opacity: .5;
+            }
+          }
+
+          & {
+            &.tl {
+              transform: translate(0%, 0%);
+
+            }
+
+            &.tc {
+              transform: translate(-50%, 0%);
+
+            }
+
+            &.tr {
+              transform: translate(-100%, 0%);
+
+            }
+
+            &.cl {
+              transform: translate(0%, -50%);
+
+            }
+
+            &.cc {
+              transform: translate(-50%, -50%);
+
+            }
+
+            &.cr {
+              transform: translate(-100%, -50%);
+
+            }
+
+            &.bl {
+              transform: translate(0%, -100%);
+
+            }
+
+            &.bc {
+              transform: translate(-50%, -100%);
+
+            }
+
+            &.br {
+              transform: translate(-100%, -100%);
+
+            }
+          }
+
+        }
+
+        &.hide {
           pointer-events: none;
 
-          >div {
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
+          .Buttons {
+            opacity: 0;
 
-            >button {
-              @include FlexCenter2();
-              aspect-ratio: 1;
-              width: 50px;
-              border: none;
-              outline: none;
-              background-color: #0000;
+            &.tl,
+            &.tc,
+            &.tr {
+              clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
 
-              svg {
-                fill: Color();
-              }
+            }
 
-              &:hover,
-              &:active {
-                background-color: Color();
+            &.cl,
+            &.cc,
+            &.cr {
+              clip-path: polygon(0 50%, 100% 50%, 100% 50%, 50%);
+            }
 
-                &,
-                * {
-                  transition: all 0s, transform DefaultTransition();
+            &.bl,
+            &.bc,
+            &.br {
+              clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%);
+            }
+          }
+        }
+      }
+
+      .MainArea {
+        z-index: 5;
+        @include GridFrame();
+        overflow: hidden;
+
+
+        .Run {
+          z-index: 100;
+          padding-top: 20vh;
+          display: flex;
+          justify-content: flex-start;
+          align-items: center;
+          flex-direction: column;
+          background-color: Color(.02, .4);
+
+          .input,
+          button {
+            width: 1000px;
+            border: none;
+            outline: none;
+            background-color: Color(.1);
+            font-size: 30px;
+            padding: 10px 40px;
+            box-shadow: 0 10px 20px Color(.08, .5);
+            margin-bottom: 20px;
+          }
+
+          .btf-frm {
+            transition: cubic-bezier(0, 1, 0, 1) 1s;
+
+            @starting-style {
+              transform: translateY(50px);
+              opacity: 0;
+              filter: blur(10px);
+            }
+          }
+
+          button {
+            text-align-last: left;
+            font-size: 25px;
+            margin-bottom: 10px;
+
+            &.focus {
+              transition: all DefaultTransition(), color 0s, background-color 0s;
+              color: #000;
+              background-color: Color();
+            }
+
+            &[no-res] {
+              pointer-events: none;
+              text-align-last: center;
+              opacity: .5;
+            }
+          }
+
+          &.hide {
+            transform: scale(1.3) translateY(-10px);
+            opacity: 0;
+            transition: all cubic-bezier(.46, .07, 0, 1) .5s, opacity ease .25s;
+            filter: blur(10px);
+            background-color: #0000;
+            backdrop-filter: none;
+            pointer-events: none;
+          }
+        }
+
+        .SnapPreview {
+          z-index: 75;
+          pointer-events: none;
+
+          div {
+            position: relative;
+            background-color: Color(.1, .5);
+            width: 100%;
+            height: 100%;
+            top: 0%;
+            left: 0%;
+            transition-duration: .2s;
+            backdrop-filter: $blur-effect-5;
+          }
+        }
+
+        .Windows {
+          z-index: 50;
+
+          >* {
+            pointer-events: all;
+          }
+        }
+
+        .StartMenu {
+          overflow: hidden;
+          z-index: 1;
+          opacity: 0;
+          z-index: 1000;
+          background-color: Color(.02, .8);
+          backdrop-filter: none;
+          @include GridFrame();
+
+          & {
+            pointer-events: none;
+          }
+
+          /* KIASTALA VA NIETOKALE!!!!!!! */
+          /* 這KILO語 看不懂正常 我也看不懂 */
+          .KIASTALA {
+            overflow: hidden;
+            z-index: 0;
+            @include GridFrame();
+            align-content: center;
+
+            *,
+            & {
+              pointer-events: none;
+            }
+
+            .LINIE,
+            .CORE,
+            .CER {
+              @include Freedom();
+              position: relative;
+              top: 50%;
+              left: 50%;
+            }
+
+            .LINIE {
+              animation: .25s ease-in-out 0s infinite alternate LINIE_FLASH;
+              width: 150%;
+              height: 20px;
+              background: Color();
+              filter: blur(30px);
+              opacity: .8;
+            }
+
+            .CORE {
+              animation: .25s ease-in-out 0s infinite alternate CORE_FLASH;
+              $s : 280px;
+              width: $s;
+              height: $s;
+              left: 0;
+              border-radius: 50%;
+              background-color: Color();
+              filter: blur(100px);
+            }
+
+            .CER {
+              $s : 300px;
+              width: $s;
+              height: $s;
+              left: 0;
+              @include GridFrame();
+
+              >div {
+                animation: 1s linear 0s infinite CER_ROTA;
+                @include GridFrame();
+
+                >div {
+                  border: 10px solid Color();
+                  clip-path: polygon(50% 0, 100% 0, 100% 50%, 50% 50%, 50% 100%, 0 100%, 0 50%, 50% 50%);
+                  border-radius: 50%;
                 }
+              }
+            }
+          }
+
+          .Side {
+            z-index: 2;
+            display: flex;
+            pointer-events: none;
+
+            >div {
+              display: flex;
+              flex-direction: column;
+              align-items: stretch;
+
+              >button {
+                @include FlexCenter2();
+                aspect-ratio: 1;
+                width: 50px;
+                border: none;
+                outline: none;
+                background-color: #0000;
 
                 svg {
-                  fill: #000;
+                  fill: Color();
+                }
+
+                &:hover,
+                &:active {
+                  background-color: Color();
+
+                  &,
+                  * {
+                    transition: all 0s, transform DefaultTransition();
+                  }
+
+                  svg {
+                    fill: #000;
+                  }
+                }
+
+                &:active {
+                  transform: scale(.9);
+                  filter: brightness(.8);
+
+                  &,
+                  * {
+                    transition: none;
+                  }
                 }
               }
+            }
+          }
 
-              &:active {
-                transform: scale(.9);
-                filter: brightness(.8);
+          .Buttons {
+            display: flex;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            flex-direction: row;
+            align-content: center;
+            gap: 10px;
+            padding: 100px;
+            filter: blur(30px);
 
-                &,
-                * {
-                  transition: none;
+            >div {
+              transform: translateX(200px) scale(.95);
+              opacity: 0;
+              transition-timing-function: cubic-bezier(.64, .13, 0, 1);
+
+              >button {
+                @include GridFrame();
+                $size: 150px;
+                width: $size;
+                height: $size;
+                background-color: Color(1, .2);
+                border: none;
+                outline: none;
+
+                .icon {
+                  @include FlexCenter();
+                  fill: Color();
+                }
+
+                .name {
+                  display: flex;
+                  align-items: flex-end;
+                  justify-content: flex-start;
+                  padding: 5px;
+                }
+
+                &:hover,
+                &:active {
+                  background-color: Color();
+
+                  &,
+                  * {
+                    transition: all 0s, transform DefaultTransition();
+                  }
+
+                  .icon {
+                    fill: #000;
+                  }
+
+                  .name {
+                    span {
+                      color: #000;
+                    }
+                  }
+                }
+
+                &:active {
+                  transform: scale(.9);
+                  filter: brightness(.8);
+
+                  &,
+                  * {
+                    transition: none;
+                  }
                 }
               }
             }
           }
         }
 
-        .Buttons {
-          display: flex;
-          justify-content: flex-start;
-          flex-wrap: wrap;
-          flex-direction: row;
-          align-content: center;
-          gap: 10px;
-          padding: 100px;
+        .CancelDrag {
+          z-index: 1145141919810;
 
-          >div {
-            transform: translateX(200px) scale(.95);
-            opacity: 0;
-            transition-timing-function: cubic-bezier(.64, .13, 0, 1);
+          &,
+          * {
+            pointer-events: none;
+          }
 
-            >button {
-              @include GridFrame();
-              $size: 150px;
-              width: $size;
-              height: $size;
-              background-color: Color(.5, .5);
-              border: none;
-              outline: none;
+          .main {
+            $tf: cubic-bezier(.24, -0.01, .99, .34);
+            height: 150px;
+            @include GridFrame();
 
-              .icon {
-                @include FlexCenter();
-                fill: Color();
-              }
+            .bg {
+              z-index: 1;
+              background: linear-gradient(0deg, Color(.02, 0) 25%, Color(.02, .5) 100%);
+              opacity: 0;
+            }
 
-              .name {
-                display: flex;
-                align-items: flex-end;
-                justify-content: flex-start;
-                padding: 5px;
-              }
+            .btn {
+              z-index: 2;
+              @include FlexCenter2();
+              transform: translateY(-100%);
+              transition: $tf .3s;
 
-              &:hover,
-              &:active {
-                background-color: Color();
+              .area {
+                border: 2px solid #0000;
+                outline: 2px solid Color(1, 0);
+                padding: 6px 0px;
+                opacity: 0;
 
-                &,
-                * {
-                  transition: all 0s, transform DefaultTransition();
+                span {
+                  background-color: Color(.3);
+                  color: Color();
+                  padding: 6px 30px;
                 }
 
-                .icon {
-                  fill: #000;
-                }
+                &.activ {
+                  border: 5px solid #0000;
+                  outline: 2px solid Color(1, .5);
+                  transform: scale(1.2);
 
-                .name {
+                  *,
+                  & {
+                    transition: all 0s, transform DefaultTransition();
+                  }
+
                   span {
+                    background-color: Color();
                     color: #000;
                   }
                 }
               }
+            }
 
-              &:active {
-                transform: scale(.9);
-                filter: brightness(.8);
+            &.activ {
+              .bg {
+                opacity: 1;
+              }
 
-                &,
-                * {
-                  transition: none;
+              .btn {
+                transform: translateY(-10%);
+                transition: DefaultTransition();
+
+                .area {
+                  pointer-events: all;
+                  opacity: 1;
                 }
               }
             }
           }
         }
-      }
 
-      .CancelDrag {
-        z-index: 1145141919810;
+        &.startMenu {
 
-        &,
-        * {
-          pointer-events: none;
-        }
+          .Windows,
+          .StartMenu {
+            transition: ease-out .5s;
+          }
 
-        .main {
-          $tf: cubic-bezier(.24, -0.01, .99, .34);
-          height: 150px;
-          @include GridFrame();
-
-          .bg {
-            z-index: 1;
-            background: linear-gradient(0deg, Color(.02, 0) 25%, Color(.02, .5) 100%);
+          .Windows {
             opacity: 0;
-          }
 
-          .btn {
-            z-index: 2;
-            @include FlexCenter2();
-            transform: translateY(-100%);
-            transition: $tf .3s;
-
-            .area {
-              border: 2px solid #0000;
-              outline: 2px solid Color(1, 0);
-              padding: 6px 0px;
-              opacity: 0;
-
-              span {
-                background-color: Color(.3);
-                color: Color();
-                padding: 6px 30px;
-              }
-
-              &.activ {
-                border: 5px solid #0000;
-                outline: 2px solid Color(1, .5);
-                transform: scale(1.2);
-
-                *,
-                & {
-                  transition: all 0s, transform DefaultTransition();
-                }
-
-                span {
-                  background-color: Color();
-                  color: #000;
-                }
-              }
+            *,
+            & {
+              pointer-events: none;
             }
           }
 
-          &.activ {
-            .bg {
-              opacity: 1;
+          .StartMenu {
+            opacity: 1;
+
+            & {
+              pointer-events: all;
             }
 
-            .btn {
-              transform: translateY(-10%);
-              transition: DefaultTransition();
-
-              .area {
+            .Side {
+              >div {
                 pointer-events: all;
+
+              }
+            }
+
+            .Buttons {
+              filter: blur(0);
+
+              >div {
+                transition: DefaultTransition();
+                transform: none;
                 opacity: 1;
               }
             }
@@ -426,99 +834,132 @@
         }
       }
 
-      &.startMenu {
+      .Buttons {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        overflow: hidden;
 
-        .Windows,
-        .StartMenu {
-          transition: ease-out .5s;
-        }
+        .Bar {
+          overflow: hidden;
+          z-index: 10;
+          zoom: 80%;
+          background-color: Color(.02, .7);
+          backdrop-filter: $blur-effect;
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          gap: 5px;
 
-        .Windows {
-          opacity: 0;
-
-          *,
-          & {
-            pointer-events: none;
-          }
-        }
-
-        .StartMenu {
-          opacity: 1;
-
-          & {
-            pointer-events: all;
+          >div {
+            display: flex;
           }
 
-          .Side {
-            >div {
-              pointer-events: all;
+          // .Left {}
 
-            }
+          .List {
+            overflow: auto;
           }
 
-          .Buttons {
-            >div {
-              transition: DefaultTransition();
-              transform: none;
-              opacity: 1;
-            }
+          .Right {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 20px;
           }
         }
       }
     }
 
-    .Buttons {
-      display: grid;
-      grid-template-rows: 1fr auto;
-      overflow: hidden;
-
-      .Bar {
-        overflow: hidden;
-        z-index: 10;
-        zoom: 80%;
-        background-color: Color(.02, .7);
-        backdrop-filter: $blur-effect;
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 5px;
-
-        >div {
-          display: flex;
-        }
-
-        // .Left {}
-
-        .List {
-          overflow: auto;
-        }
-
-        .Right {
-          display: flex;
-          align-items: center;
-          flex-direction: column;
-          justify-content: center;
-          padding: 0 20px;
-        }
-      }
+    >.Background {
+      scale: 1.1;
+      filter: blur(50px);
+      opacity: .1;
     }
 
     &.hide {
+      .mainArea {
+        opacity: 0;
 
-      *,
-      & {
-        pointer-events: none;
-        transition: none;
+        *,
+        & {
+          pointer-events: none;
+          transition: none;
+        }
+
+        >.Background {
+          transform: scale(1.2);
+          opacity: 0;
+        }
+
+        >.Buttons {
+          >.Bar {
+            transform: translateY(100%)
+          }
+        }
       }
 
       >.Background {
-        transform: scale(1.2);
-        opacity: 0;
+        @starting-style {
+          opacity: 0;
+        }
+      }
+    }
+
+    &.workSpaceEditor {
+      $dt: DefaultTransition();
+
+      .workSpaceMgr {
+        .menu {
+          box-shadow: 0 0 10px 10px Color(.1, .2);
+          transform: none;
+          transition: $dt;
+        }
       }
 
-      >.Buttons {
-        >.Bar {
-          transform: translateY(100%)
+      .textArea,
+      .mainArea {
+        transform: scale(.8);
+        transition: all $dt , scale cubic-bezier(.53, .22, 0, 1) .2s;
+      }
+
+      .textArea {
+        .name {
+          input {
+            translate: 0 -150%;
+            opacity: 1;
+          }
         }
+
+        .note {
+          input {
+            translate: 0 130%;
+            opacity: 1;
+          }
+        }
+      }
+
+      .mainArea {
+        .wsEditor {
+          opacity: 1;
+        }
+
+        * {
+          pointer-events: none !important;
+        }
+
+        &:hover {
+          scale: 1.01;
+        }
+
+        &:active {
+          transition: cubic-bezier(0, .84, 0, 1) .5s;
+          scale: .99;
+          filter: brightness(.9);
+        }
+      }
+
+      >.Background {
+        opacity: .5;
       }
     }
   }
@@ -535,14 +976,18 @@
       flex-direction: column-reverse;
       align-items: flex-start;
       justify-content: flex-start;
+    overflow: hidden;
+
 
       >div {
         transition: cubic-bezier(0, .49, 0, 1) 1s;
         margin: 50px;
         zoom: 90%;
+        overflow: auto;
 
         .User {
           @include GridFrame();
+          margin: 6px;
           margin-top: 10px;
           outline: 5px solid #0000;
           border: none;
@@ -558,11 +1003,19 @@
             padding-left: 10px;
             gap: 10px;
             z-index: 2;
+            overflow: hidden;
 
             .avatar {
               margin: 15px;
               aspect-ratio: 1;
               border-radius: 50%;
+              backdrop-filter: $blur-effect-2;
+              overflow: hidden;
+
+              .Background {
+                aspect-ratio: 1;
+                overflow: hidden;
+              }
             }
 
             .name {
@@ -574,7 +1027,7 @@
             }
           }
 
-          .Background {
+          >.Background {
             z-index: 1;
             filter: brightness(.5);
             opacity: .3;
@@ -667,6 +1120,13 @@
           aspect-ratio: 1;
           width: 250px;
           border-radius: 50%;
+          backdrop-filter: $blur-effect-2;
+          overflow: hidden;
+
+          .Background {
+            aspect-ratio: 1;
+            overflow: hidden;
+          }
         }
 
         .name {
@@ -776,6 +1236,7 @@
 
       >.img {
         @include GridFrame();
+        overflow: hidden;
 
         &.show {
           z-index: 2;
@@ -838,13 +1299,18 @@
   }
 
   .Background {
+    position: relative;
     overflow: hidden;
-    @include GridFrame();
-    z-index: 1;
 
-    .Image {
-      @include BgCntr();
+    img,
+    video {
       transition: none;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 100% 100%;
+      transform-origin: 100% 100%;
+      transform: scale(1.1);
     }
   }
 }
@@ -856,10 +1322,9 @@
 
   >.ButtonList {
     @include GridFrame();
-    background: Color(.3, .5);
+    background: Color(.3, .2);
     overflow: hidden;
 
-    .background,
     .text {
       display: flex;
 
@@ -869,7 +1334,16 @@
         }
 
         transform: skewX(-10deg) translateX(-16px);
-        box-shadow: -8px 0 5px 10px Color(.01, .8);
+        background-color: Color(.1, .3) !important;
+
+        &:hover,
+        &:active {
+          background-color: Color() !important;
+        }
+
+        &:active {
+          background-color: Color(.5) !important;
+        }
 
         div {
           transform: skewX(10deg);
@@ -877,35 +1351,44 @@
         }
       }
     }
-
-    .background {
-      z-index: 0;
-      pointer-events: none;
-      opacity: .4;
-
-      *,
-      & {
-        color: #0000 !important;
-      }
-    }
-
-    .text {
-      z-index: 10;
-
-      *:not(:hover, :active),
-      &:not(:hover, :active) {
-        background: none !important;
-      }
-
-      *,
-      & {
-        box-shadow: none !important;
-      }
-    }
   }
 
   >.MainContent {
     overflow: hidden;
     @include GridFrame();
+  }
+}
+
+@keyframes LINIE_FLASH {
+  from {
+    height: 20px;
+  }
+
+  to {
+    height: 25px;
+  }
+}
+
+@keyframes CORE_FLASH {
+  from {
+    $s : 280px;
+    width: $s;
+    height: $s;
+  }
+
+  to {
+    $s : 300px;
+    width: $s;
+    height: $s;
+  }
+}
+
+@keyframes CER_ROTA {
+  from {
+    transform: rotateZ(0deg);
+  }
+
+  to {
+    transform: rotateZ(360deg);
   }
 }

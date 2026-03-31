@@ -17,10 +17,12 @@ export type WindowProps = {
   manager: WindowManager<any>;
   onClose: (id: string) => void;
   rect: WindowRect;
+  isClosing?: boolean;
   actions?: {
     canMinimize?: boolean;
     canMaximize?: boolean;
     canResize?: boolean;
+    canClose?: boolean;
   };
 };
 
@@ -33,15 +35,18 @@ export default function Window({
   actions,
   rect,
   nonTransparens,
+  isClosing: isClosingProp = false,
 }: WindowProps) {
   const {
     canMinimize = true,
     canMaximize = true,
     canResize = true,
+    canClose = true,
   } = actions ?? {
     canMinimize: true,
     canMaximize: true,
     canResize: true,
+    canClose: true,
   };
 
   const winRef = useRef<HTMLDivElement>(null);
@@ -56,6 +61,7 @@ export default function Window({
   const [isMounted, setIsMounted] = useState(false);
   const [actionStatus, setActionStatus] = useState<boolean>(false);
   const [altIsPress, setAltIsPress] = useState(false);
+  const [isSnapped, setIsSnapped] = useState(false);
 
   const lastSyncedRect = useRef(rect);
 
@@ -63,11 +69,16 @@ export default function Window({
     isMaximized,
     isMinimized,
     canResize,
+    isSnapped,
   });
 
   useEffect(() => {
-    stateRef.current = { isMaximized, isMinimized, canResize };
-  }, [isMaximized, isMinimized, canResize]);
+    stateRef.current = { isMaximized, isMinimized, canResize, isSnapped };
+  }, [isMaximized, isMinimized, canResize, isSnapped]);
+
+  useEffect(() => {
+    if (isClosingProp) setIsClosing(true);
+  }, [isClosingProp]);
 
   useEffect(() => {
     if (winRef.current) {
@@ -108,22 +119,26 @@ export default function Window({
         setIsClosing(self.isClosing ?? false);
         setIsMinimized(self.isMinimized);
         setIsMaximized(self.isMaximized);
+        setIsSnapped((self as any).isSnapped ?? false);
       }
     });
     return () => unsubscribe();
   }, [windowId, manager]);
 
   const handleMaximize = () => {
+    if (manager.notifyBtnEvent?.(windowId, "max")) return;
     if ((manager as any).toggleMaximize) {
       (manager as any).toggleMaximize(windowId);
     }
   };
 
   const handleMinimize = () => {
+    if (manager.notifyBtnEvent?.(windowId, "min")) return;
     manager.minimizeWindow(windowId);
   };
 
   const handleClose = () => {
+    if (manager.notifyBtnEvent?.(windowId, "close")) return;
     onClose(windowId);
   };
 
@@ -154,8 +169,8 @@ export default function Window({
     const minW = 600;
     const minH = 400;
 
-    const getSnapped = (val: number, limit: number) => {
-      if (limit <= 0) return val;
+    const getSnapped = (val: number, limit: number, skipSnap = false) => {
+      if (skipSnap || limit <= 0) return val;
       if (Math.abs(val) < snapDist) return 0;
       if (Math.abs(val - limit) < snapDist) return limit;
       return val;
@@ -175,12 +190,13 @@ export default function Window({
       const dy = localY - startY;
 
       const currentMaximized = stateRef.current.isMaximized;
+      const currentIsSnapped = stateRef.current.isSnapped;
 
       if (!hasMoved) {
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
           hasMoved = true;
 
-          if (currentMaximized && (action === "move" || action === "alt-move")) {
+          if ((currentMaximized || currentIsSnapped) && (action === "move" || action === "alt-move")) {
             const { width: cW, height: cH } = manager.getContainerMetrics();
 
             const preRect = (manager as any).getPreMaximizedRect?.(windowId);
@@ -246,7 +262,8 @@ export default function Window({
         const snapDelta = manager.getSnapDelta(
           windowId,
           { left: newLeft, top: newTop, width: currentW, height: currentH },
-          action
+          action,
+          e.ctrlKey
         );
 
         newLeft += snapDelta.x;
@@ -256,10 +273,10 @@ export default function Window({
         const limitH = ch - currentH;
 
         if (snapDelta.x === 0) {
-          newLeft = getSnapped(newLeft, limitW);
+          newLeft = getSnapped(newLeft, limitW, e.ctrlKey);
         }
         if (snapDelta.y === 0) {
-          newTop = getSnapped(newTop, limitH);
+          newTop = getSnapped(newTop, limitH, e.ctrlKey);
         }
 
         if (newTop < 0) newTop = 0;
@@ -277,7 +294,7 @@ export default function Window({
           height: (currentH / ch) * 100,
         };
 
-        const EDGE = 20;
+        const EDGE = 5;
         let newSnapPosition: SnapPosition | null = null;
         if (localY <= EDGE && localX <= EDGE) newSnapPosition = "top-left";
         else if (localY >= ch - EDGE && localX <= EDGE) newSnapPosition = "bottom-left";
@@ -350,7 +367,8 @@ export default function Window({
       const snapDelta = manager.getSnapDelta(
         windowId,
         { left: rawLeft, top: rawTop, width: rawWidth, height: rawHeight },
-        action
+        action,
+        e.ctrlKey
       );
 
       if (action.includes("e")) rawWidth += snapDelta.x;
@@ -364,7 +382,7 @@ export default function Window({
         rawHeight -= snapDelta.y;
       }
 
-      if (action.includes("w")) {
+      if (action.includes("w") && !e.ctrlKey) {
         if (Math.abs(rawLeft) < snapDist) {
           const offset = rawLeft;
           rawLeft = 0;
@@ -372,7 +390,7 @@ export default function Window({
         }
       }
 
-      if (action.includes("n")) {
+      if (action.includes("n") && !e.ctrlKey) {
         if (Math.abs(rawTop) < snapDist) {
           const offset = rawTop;
           rawTop = 0;
@@ -380,14 +398,14 @@ export default function Window({
         }
       }
 
-      if (action.includes("e")) {
+      if (action.includes("e") && !e.ctrlKey) {
         const currentRight = rawLeft + rawWidth;
         if (Math.abs(currentRight - cw) < snapDist) {
           rawWidth = cw - rawLeft;
         }
       }
 
-      if (action.includes("s")) {
+      if (action.includes("s") && !e.ctrlKey) {
         const currentBottom = rawTop + rawHeight;
         if (Math.abs(currentBottom - ch) < snapDist) {
           rawHeight = ch - rawTop;
@@ -629,17 +647,19 @@ export default function Window({
               <div className={style["bg"]} />
             </div>
           )}
-          <div className={style["cls"]} onClick={handleClose}>
-            <div className={style["icon"]}>
-              <svg width="28.28" height="28.28" viewBox="0 0 28.28 28.28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <g>
-                  <path d="M0 0L14.1421 14.1421" fill="none" strokeWidth="2" strokeLinecap="round" transform="translate(7 7)" />
-                  <path d="M0 14.1421L14.1421 0" fill="none" strokeWidth="2" strokeLinecap="round" transform="translate(7 7)" />
-                </g>
-              </svg>
+          {canClose && (
+            <div className={style["cls"]} onClick={handleClose}>
+              <div className={style["icon"]}>
+                <svg width="28.28" height="28.28" viewBox="0 0 28.28 28.28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <g>
+                    <path d="M0 0L14.1421 14.1421" fill="none" strokeWidth="2" strokeLinecap="round" transform="translate(7 7)" />
+                    <path d="M0 14.1421L14.1421 0" fill="none" strokeWidth="2" strokeLinecap="round" transform="translate(7 7)" />
+                  </g>
+                </svg>
+              </div>
+              <div className={style["bg"]} />
             </div>
-            <div className={style["bg"]} />
-          </div>
+          )}
         </span>
       </div>
 

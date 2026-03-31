@@ -13,7 +13,6 @@
 
     @include FlexCenter();
     gap: 10px;
-    opacity: 0;
 
     .case {
       font-family: hack-nerd-font;
@@ -25,11 +24,9 @@
       animation-duration: 1s;
       animation-fill-mode: forwards;
     }
-  }
 
-  &.START {
-    .Text {
-      opacity: 1;
+    @starting-style {
+      opacity: 0;
     }
   }
 }

@@ -1,0 +1,5 @@
+@use "/styles/value" as *;
+
+.Error {
+  @include FlexCenter2();
+}

@@ -14,6 +14,7 @@
     "@types/react-dom": "18.0.10",
     "eslint": "8.33.0",
     "eslint-config-next": "^13.5.11",
+    "fuse.js": "^7.1.0",
     "howler": "^2.2.4",
     "js-sha256": "^0.11.1",
     "jszip": "^3.10.1",

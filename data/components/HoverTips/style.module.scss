@@ -36,6 +36,10 @@ $Scale: 1.3;
     width .3s $transition-timing-function .3s,
     height .3s $transition-timing-function .3s, ;
 
+  * {
+    color: Color();
+  }
+
   .title {
     font-size: 18px;
   }

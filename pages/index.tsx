@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useRef, useState, useMemo, RefObject, ReactNode, MouseEventHandler, Dispatch, SetStateAction, JSX } from "react";
 import style from "./style.module.scss";
 import { LABS_E621_API } from "@/pages/api/_LABS/E621-API/_API-LIST";
-import { SnapPosition, WindowInstance, WindowManager, WindowSnapshot } from "@/data/components/Window/WindowManager";
+import { SnapPosition, WindowAnchor, WindowInstance, WindowManager, WindowSnapshot } from "@/data/components/Window/WindowManager";
 import { _app, Kiasole, newInput } from "@/pages/_app";
 import { E621 } from "@/pages/api/_LABS/E621-API/types/e621";
 import { Button } from "./components/Button";
 import useLocalStorage, { SetValue } from "@/data/module/use/LocalStorage";
 import { WindowRect } from "@/data/components/Window/Window";
 import { makeQuery } from "@/pages/api/_LABS/E621-API/lib/e621-core";
-import { cloneDeep, merge } from "lodash";
+import { cloneDeep, divide, merge } from "lodash";
 import functions from "@/data/module/functions";
 import Viewer from "@/data/components/Viewer";
 import KiloDown from "@/data/components/KiloDown";
 import React from "react";
+import Fuse from "fuse.js";
+import color from "@/data/module/functions/color";
 
 /*
  * 這個 是一個 個人專案
@@ -25,6 +27,17 @@ import React from "react";
 
 const langList = {
   "en-us": {
+
+    "IN_DEV.tips": [
+      "This project is currently in the development phase.",
+      "So I've added a feature to export your entire LocalStorage.",
+      "This will stay here until we reach the Stable stage.",
+    ],
+    "IN_DEV.save": "Export",
+    "IN_DEV.import": "Import",
+    "IN_DEV.import.msg": "it will overwrite all the thing",
+    "IN_DEV.import.yes": "okei",
+    "IN_DEV.import.no": "nuh",
 
     "NAME": "English (US)",
     "NOTIC": "Changing the language will restart all windows",
@@ -68,6 +81,8 @@ const langList = {
     "menuButton.SaveToTmp": "Save To Tmp",
     "menuButton.CopyRawJson": "Copy Raw Json",
     "menuButton.CopyID": "Copy ID",
+    "menuButton.CopyURL": "Copy URL",
+    "menuButton.CopyImage": "Copy Image",
     "menuButton.OpenWithBrowser": "Open With Browser",
     "menuButton.OpenWithViewer": "Open With Viewer",
     "menuButton.OpenWithGetByID": "Open With Get By ID",
@@ -86,6 +101,7 @@ const langList = {
     "windowsType.postSearch": "Post Search",
     /* postSearch */
 
+    "windowsType.postSearch.title.noTags": "NO TAGS",
     "windowsType.postSearch.page": "Page $1",
 
     "windowsType.postSearch.jumpToPage": "Jump To Page",
@@ -123,12 +139,13 @@ const langList = {
     "windowsType.pool": "Pool",
 
     "windowsType.viewer": "Viewer",
+    "windowsType.preview": "Preview",
     /* viewer */
     "windowsType.viewer.ResetTransform": "Reset Transform",
 
-    "windowsType.viewer.RanderMode": "Rander Mode : ",
-    "windowsType.viewer.RanderMode.Auto": "Auto",
-    "windowsType.viewer.RanderMode.Pixelated": "Pixelated",
+    "windowsType.viewer.RenderMode": "Render Mode : ",
+    "windowsType.viewer.RenderMode.Auto": "Auto",
+    "windowsType.viewer.RenderMode.Pixelated": "Pixelated",
     /* viewer */
 
 
@@ -160,7 +177,7 @@ const langList = {
     "components.post.parent": "Parent : ",
     "components.post.children": "Child : ",
     "components.post.pool": "Pool : ",
-    "components.post.moreThenOne": "More then one, total $1",
+    "components.post.moreThanOne": "More than one, total $1",
 
     /* <:components.post: */
 
@@ -180,27 +197,32 @@ const langList = {
     /* Account */
     "setting.Account": "Account",
 
-    /* .local */
     "setting.Account.local": "Local",
+    "setting.Account.local.changeUserName": "Your User Name",
+    "setting.Account.local.changeUserName.name": "Name",
+    "setting.Account.local.changeUserName.nameIsEmpty": "just....give yourself a name....",
+    "setting.Account.local.changeUserName.update": "Update",
+    "setting.Account.local.changeUserName.restore": "Restore",
+    "setting.Account.local.changeUserName.confirm": "your new name is $1 , does that look good?",
+    "setting.Account.local.changeUserName.nice": "Nice!",
+    "setting.Account.local.changeUserName.no": "wait...let me think again",
     "setting.Account.local.changePassword": "If you want, you can change your password",
     "setting.Account.local.changePassword.current": "Current Password",
     "setting.Account.local.changePassword.new": "New Password",
     "setting.Account.local.changePassword.newAgain": "New Password Again",
     "setting.Account.local.changePassword.update": "Update Password",
     "setting.Account.local.changePassword.remove": "Remove Password",
-    "setting.Account.local.changePassword.notic.noMatch": "Doesn't match your current password .w.",
+    "setting.Account.local.changePassword.notic.noMatch": "It doesn't match your current password .w.",
     "setting.Account.local.changePassword.notic.newNoMatch": "The new passwords don't match .w.",
     "setting.Account.local.changePassword.pop.areYouSure": "Are you sure you want to remove your password?",
     "setting.Account.local.changePassword.pop.yes": "Remove it",
     "setting.Account.local.changePassword.pop.no": "Cancel",
     "setting.Account.local.changePassword.pop.hasGone": "Alright, your password is gone",
-    "setting.Account.local.changePassword.pop.hasChange": "Alright, your password has been changed",
-
-    "setting.Account.local.setPassword": "I recommend you can set a password",
+    "setting.Account.local.changePassword.pop.hasChange": "Alright, has been changed",
+    "setting.Account.local.setPassword": "I recommend setting a password",
     "setting.Account.local.setPassword.new": "New Password",
     "setting.Account.local.setPassword.setPass": "Set Password",
     "setting.Account.local.setPassword.pop.success": "You successfully set a password for your account. Great!",
-
     "setting.Account.local.deleteAccount": "Delete Account",
     "setting.Account.local.deleteAccount.1": "Are you sure you want to delete this account?",
     "setting.Account.local.deleteAccount.1.yes": "Yes, I am",
@@ -211,16 +233,23 @@ const langList = {
     "setting.Account.local.deleteAccount.3": "Do you really not care if all this disappears?",
     "setting.Account.local.deleteAccount.3.yes": "Just delete it",
     "setting.Account.local.deleteAccount.3.no": "I actually do care, cancel",
-    /* .local */
 
-    /* .avatar */
     "setting.Account.avatar": "Avatar",
     "setting.Account.avatar.set": "Set as Avatar",
     "setting.Account.avatar.apply": "Apply",
     "setting.Account.avatar.source": "Picture Source",
-    /* .avatar */
 
     "setting.Account.e621": "E621",
+    "setting.Account.e621.title": "E621 Authorization",
+    "setting.Account.e621.info": "Leaving it blank might work, but entering the wrong info definitely won't.",
+    "setting.Account.e621.inp.name": "Username",
+    "setting.Account.e621.inp.key": "API Key",
+    "setting.Account.e621.btn.update": "Update",
+    "setting.Account.e621.btn.restore": "Restore",
+    "setting.Account.e621.msg": "Are you sure this username and token are correct? Remember to double-check.",
+    "setting.Account.e621.msg.yes": "It's correct",
+    "setting.Account.e621.msg.no": "Let me check again",
+
     "setting.Account.language": "Language",
     "setting.Account.export/import": "Export/Import",
 
@@ -233,15 +262,39 @@ const langList = {
 
     /* Appearance */
     "setting.Appearance": "Appearance",
+
     "setting.Appearance.general": "General",
+    "setting.Appearance.general.scale": "UI Scale",
+    "setting.Appearance.general.scale.info": "Unless you have a specific need, don't make it too small. It's bad for your eyes.",
+    "setting.Appearance.general.clockFormat": "Clock Format",
+    "setting.Appearance.general.clockFormat.preview": "Preview",
+    "setting.Appearance.general.clockFormat.info": "Unless you have a special need, it's recommended to just set something.",
+    "setting.Appearance.general.clockFormat.info.fun": [
+      "Unless... uh, you've lost track of time like I have.",
+      "Wait, isn't that even more reason to have a clock?",
+    ],
+    "setting.Appearance.general.clockFormat.formatInfo": [
+      ":HH:  - 24-hour format hours",
+      ":mm:  - Minutes",
+      ":ss:  - Seconds",
+      "",
+      "-YY-  - 4-digit year",
+      "-yy-  - 2-digit year",
+      "-mm-  - Month number",
+      "-dd-  - Day",
+    ],
+    "setting.Appearance.general.clockFormat.overFlow": "Uh, the one below... don't put too much... it'll break the layout... unless you like that 'broken' look...",
+    "setting.Appearance.general.clockFormat.none": "Uh... where is your clock?",
+    "setting.Appearance.general.clockFormat.apply": "Apply",
+    "setting.Appearance.general.clockFormat.restore": "Restore",
+    "setting.Appearance.general.clockFormat.restoreDefault": "Restore to Default",
+
     "setting.Appearance.theme": "Theme",
 
-    /* .wallpaper */
     "setting.Appearance.wallpaper": "Wallpaper",
     "setting.Appearance.wallpaper.set": "Set as Wallpaper",
     "setting.Appearance.wallpaper.apply": "Apply",
     "setting.Appearance.wallpaper.source": "Picture Source",
-    /* .wallpaper */
 
 
     /* Information */
@@ -269,8 +322,55 @@ const langList = {
 
 
     /* <:setting: */
+
+    /* >:runBox: */
+
+    "runBox": "Run",
+    "runBox.placeholder": "Type anything you want to search",
+    "runBox.NONE": "Nothing",
+
+    "runBox.intro.searchPost": "Search Post",
+    "runBox.intro.searchPost.search": "Search",
+    "runBox.intro.searchPost.noTag": "Open Search With Out Any Tags",
+
+    "runBox.intro.poolOrPostID": "Pool or Post ID",
+    "runBox.intro.poolOrPostID.NaN": "is Not A Number",
+
+    "runBox.intro.toggleWindows": "Toggle Windows",
+    "runBox.intro.toggleWindows.moreAction": "More Action",
+    "runBox.intro.toggleWindows.moreAction.closeAllWindow": "Close All Window",
+    "runBox.intro.toggleWindows.moreAction.minimizeAllWindow": "Minimize All Window",
+    "runBox.intro.toggleWindows.moreAction.restoreAllWindow": "Restore All Window",
+
+    "runBox.intro.appOrOtherAction": "Open App or Some Action",
+
+    "runBox.actions.saveWorkSpaceStatus": "Save WorkSpace Status",
+    "runBox.actions.logout.withoutSaveStatus": "Without Saving Status",
+
+    /* <:runBox: */
+
+    /* >:workSpaceManager: */
+
+    "workSpaceManager": "WorkSpace Manager",
+    "workSpaceManager.note.placeholder": "Note...",
+    "workSpaceManager.name.placeholder": "Name...",
+    "workSpaceManager.newDesktop": "New Desktop",
+
+    /* <:workSpaceManager: */
+
   },
   "zh-tw": {
+
+    "IN_DEV.tips": [
+      "這東西目前還在開發階段",
+      "所以我寫了個可以匯出整個LocalStorage的東西",
+      "這個東西會帶在這邊 直到進入Stable階段",
+    ],
+    "IN_DEV.save": "存檔",
+    "IN_DEV.import": "讀檔",
+    "IN_DEV.import.msg": "會覆蓋掉你的所有東西",
+    "IN_DEV.import.yes": "行",
+    "IN_DEV.import.no": "先不要",
 
     "NAME": "繁體中文",
     "NOTIC": "切語言的時候會重開所有視窗",
@@ -283,7 +383,7 @@ const langList = {
     /* startMenuSide */
     "startMenuSide.logout": "登出",
     "startMenuSide.appSetting": "設定",
-    "startMenuSide.console": "控制臺",
+    "startMenuSide.console": "控制台",
 
     /* Taskbar */
     "taskBar.startMenu": "開始選單",
@@ -314,9 +414,11 @@ const langList = {
     "menuButton.SaveToTmp": "存到暫存區",
     "menuButton.CopyRawJson": "複製原始JSON",
     "menuButton.CopyID": "複製ID",
-    "menuButton.OpenWithBrowser": "在瀏覽器中開啓",
-    "menuButton.OpenWithViewer": "在圖片檢視器中開啓",
-    "menuButton.OpenWithGetByID": "在從ID抓作品中開啓",
+    "menuButton.CopyURL": "複製連結",
+    "menuButton.CopyImage": "複製圖片",
+    "menuButton.OpenWithBrowser": "在瀏覽器中開啟",
+    "menuButton.OpenWithViewer": "在圖片檢視器中開啟",
+    "menuButton.OpenWithGetByID": "用 ID 抓作品並開啟",
     "menuButton.SetAsWallpaper": "設成桌布",
     "menuButton.SetAsAvatar": "設成頭貼",
 
@@ -331,6 +433,7 @@ const langList = {
     "windowsType.postSearch": "作品搜尋",
 
     /* postSearch */
+    "windowsType.postSearch.title.noTags": "沒有標籤",
     "windowsType.postSearch.page": "第 $1 頁",
 
     "windowsType.postSearch.jumpToPage": "跳轉至頁",
@@ -365,12 +468,13 @@ const langList = {
     "windowsType.pool": "圖池",
 
     "windowsType.viewer": "檢視器",
+    "windowsType.preview": "預覽",
     /* viewer */
     "windowsType.viewer.ResetTransform": "重置縮放和位置",
 
-    "windowsType.viewer.RanderMode": "渲染模式 : ",
-    "windowsType.viewer.RanderMode.Auto": "自動",
-    "windowsType.viewer.RanderMode.Pixelated": "像素化",
+    "windowsType.viewer.RenderMode": "渲染模式 : ",
+    "windowsType.viewer.RenderMode.Auto": "自動",
+    "windowsType.viewer.RenderMode.Pixelated": "像素化",
     /* viewer */
 
     "windowsType.setting": "設定",
@@ -402,7 +506,7 @@ const langList = {
     "components.post.parent": "母作品 : ",
     "components.post.children": "子作品 : ",
     "components.post.pool": "圖池 : ",
-    "components.post.moreThenOne": "超過一個 總計 $1 個",
+    "components.post.moreThanOne": "不只一個 總計 $1 個",
 
     /* <:components.post: */
 
@@ -415,14 +519,22 @@ const langList = {
     /* Search */
     "setting.Search": "搜尋",
     "setting.Search.general": "主要",
-    "setting.Search.tags": "標簽",
+    "setting.Search.tags": "標籤",
     "setting.Search.history": "歷史",
-    "setting.Search.export/import": "導入/導出",
+    "setting.Search.export/import": "匯入/匯出",
 
     /* Account */
-    "setting.Account": "賬號",
+    "setting.Account": "帳號",
 
     "setting.Account.local": "本機",
+    "setting.Account.local.changeUserName": "你の使用者名稱",
+    "setting.Account.local.changeUserName.name": "君の名字",
+    "setting.Account.local.changeUserName.nameIsEmpty": "你還是....給自己取個名吧拜托....",
+    "setting.Account.local.changeUserName.update": "更新",
+    "setting.Account.local.changeUserName.restore": "還原",
+    "setting.Account.local.changeUserName.confirm": "你的新名字是 $1 , 你覺得如何？",
+    "setting.Account.local.changeUserName.nice": "欸挺好 就它了！",
+    "setting.Account.local.changeUserName.no": "欸....我再想想",
     "setting.Account.local.changePassword": "如果你想的話 你可以改掉你的密碼",
     "setting.Account.local.changePassword.current": "你目前的密碼",
     "setting.Account.local.changePassword.new": "新的密碼",
@@ -444,7 +556,7 @@ const langList = {
     "setting.Account.local.deleteAccount.1": "你確定你要砍掉這個賬號？",
     "setting.Account.local.deleteAccount.1.yes": "是沒錯",
     "setting.Account.local.deleteAccount.1.no": "先不要",
-    "setting.Account.local.deleteAccount.2": "你現在的所有東西都會直接無\n你的下載 你的暫存 你的歷史 都會無",
+    "setting.Account.local.deleteAccount.2": "你現在的所有東西都會直接沒\n你的下載 你的暫存 你的歷史 都會無",
     "setting.Account.local.deleteAccount.2.yes": "啊對 就是要刪",
     "setting.Account.local.deleteAccount.2.no": "啊？那算了",
     "setting.Account.local.deleteAccount.3": "你真的不在乎這些東西會消失？",
@@ -458,12 +570,20 @@ const langList = {
 
 
     "setting.Account.e621": "E621",
-
+    "setting.Account.e621.title": "E621的憑證",
+    "setting.Account.e621.info": "不打不一定查不到東西 但亂打一定會查不到東西",
+    "setting.Account.e621.inp.name": "使用者名稱",
+    "setting.Account.e621.inp.key": "密鑰",
+    "setting.Account.e621.btn.update": "更新",
+    "setting.Account.e621.btn.restore": "還原",
+    "setting.Account.e621.msg": "確定這密碼和token是對的？記得檢查一下",
+    "setting.Account.e621.msg.yes": "這對的",
+    "setting.Account.e621.msg.no": "我還是再檢查一下好了",
 
     "setting.Account.language": "語言",
 
 
-    "setting.Account.export/import": "導入/導出",
+    "setting.Account.export/import": "匯入/匯出",
 
 
 
@@ -471,20 +591,46 @@ const langList = {
     "setting.Download": "下載",
     "setting.Download.general": "主要",
     "setting.Download.history": "歷史",
-    "setting.Download.export/import": "導入/導出",
+    "setting.Download.export/import": "匯入/匯出",
 
 
     /* Appearance */
     "setting.Appearance": "外觀",
+
     "setting.Appearance.general": "主要",
+    "setting.Appearance.general.scale": "整體的縮放",
+    "setting.Appearance.general.scale.info": "除非有特殊需求 不然不要縮太小 對眼睛不好",
+    "setting.Appearance.general.clockFormat": "時鐘格式",
+    "setting.Appearance.general.clockFormat.info": "除非特殊需求 啊不然建議還是隨便寫個",
+    "setting.Appearance.general.clockFormat.info.fun": [
+      "除非....額 你跟我一樣失去了時間觀念",
+      "欸那不是更應該放時鐘嗎",
+    ],
+    "setting.Appearance.general.clockFormat.preview": "預覽",
+
+    "setting.Appearance.general.clockFormat.formatInfo": [
+      ":HH:  - 24小時制的小時",
+      ":mm:  - 分鐘",
+      ":ss:  - 秒",
+      "",
+      "-YY-  - 四位數的年份",
+      "-yy-  - 兩位數的年份",
+      "-mm-  - 數字的月",
+      "-dd-  - 日",
+    ],
+    "setting.Appearance.general.clockFormat.overFlow": "啊 下面這個....不要放太多....會破版....除非你喜歡破版的感覺.....",
+    "setting.Appearance.general.clockFormat.none": "啊你的....時鐘呢?",
+    "setting.Appearance.general.clockFormat.apply": "套用",
+    "setting.Appearance.general.clockFormat.restore": "還原",
+    "setting.Appearance.general.clockFormat.restoreDefault": "還原至預設",
+
+
     "setting.Appearance.theme": "主題",
 
-    /* .wallpaper */
     "setting.Appearance.wallpaper": "桌布",
     "setting.Appearance.wallpaper.set": "設成桌布",
     "setting.Appearance.wallpaper.apply": "套用",
     "setting.Appearance.wallpaper.source": "桌布來源",
-    /* .wallpaper */
 
 
     /* Information */
@@ -505,15 +651,50 @@ const langList = {
       "哦對了 雖然 這句是我朋友講的 但我還是要講",
       "就 額 就 我好像真的把E621當專業軟體在寫欸",
     ],
-    "setting.Information.general.repoLink": "倉庫鏈接",
+    "setting.Information.general.repoLink": "倉庫連結",
 
 
     /* <:setting: */
 
+
+    /* >:runBox: */
+
+    "runBox": "執行",
+    "runBox.placeholder": "輸入任何你想查的東西",
+    "runBox.NONE": "沒東西",
+
+    "runBox.intro.searchPost": "搜尋貼文",
+    "runBox.intro.searchPost.search": "搜尋",
+    "runBox.intro.searchPost.noTag": "在沒有任何標籤的情況下搜尋",
+
+    "runBox.intro.poolOrPostID": "圖池或圖的ID",
+    "runBox.intro.poolOrPostID.NaN": "這不是數字",
+
+    "runBox.intro.toggleWindows": "切換視窗",
+    "runBox.intro.toggleWindows.moreAction": "更多選項",
+    "runBox.intro.toggleWindows.moreAction.closeAllWindow": "關閉所有視窗",
+    "runBox.intro.toggleWindows.moreAction.minimizeAllWindow": "最小化所有視窗",
+    "runBox.intro.toggleWindows.moreAction.restoreAllWindow": "還原所有視窗",
+
+    "runBox.intro.appOrOtherAction": "開啟某些東西或者執行某些操作",
+    "runBox.actions.saveWorkSpaceStatus": "儲存工作區狀態",
+    "runBox.actions.logout.withoutSaveStatus": "不存狀態 直接離開",
+
+    /* <:runBox: */
+
+    /* >:workSpaceManager: */
+
+    "workSpaceManager": "工作區管理器",
+    "workSpaceManager.note.placeholder": "筆記...",
+    "workSpaceManager.name.placeholder": "給你的工作區賜個名",
+    "workSpaceManager.newDesktop": "新增桌面",
+
+    /* <:workSpaceManager: */
   },
 }
 
 let usrIndx = 0
+let disableWindowKeyEvent = false
 
 let wmRef: RefObject<WindowManager<e621Type.defaul> | null>;
 
@@ -521,6 +702,8 @@ const StopEvent = (e: any) => {
   e.preventDefault()
   e.stopPropagation()
 }
+
+// #region 一坨型別定義
 
 namespace e621Type {
 
@@ -568,7 +751,6 @@ namespace e621Type {
       type: "poolId"
       data: number
     }
-
 
     export type setting = {
       type: "setting",
@@ -630,6 +812,7 @@ namespace e621Type {
         poolInfo?: E621.Pool,
         nowPage: number,
         pageCache: { [x: number]: E621.Post[] },
+        searchFilter?: searchFilter
       }
 
       export namespace settingTabs {
@@ -764,6 +947,11 @@ namespace e621Type {
       data: E621.Post
     }
 
+    export type preview = {
+      type: "preview",
+      data: E621.Post
+    }
+
     export type postGetByID = {
       type: "postGetByID",
       note?: string,
@@ -793,10 +981,11 @@ namespace e621Type {
     | window.pool
     | window.tmp
     | window.viewer
+    | window.preview
 
 }
 
-export namespace SettingEditor {
+namespace SettingEditor {
 
   export type ListOperations<T> = {
     moveUp: (index: number) => void;
@@ -1042,16 +1231,18 @@ namespace workSpaceType {
       }
     }
 
+    export type E621Auth = {
+      name?: string;
+      key?: string;
+    };
+
     export type SaveInfo = {
       id: string;
       user: {
         name: string;
         avatar: BaseItem.Image;
         passKey?: string;
-        e621?: {
-          name?: string;
-          key?: string;
-        };
+        e621?: E621Auth;
       };
       loginStatus?: {
         lastLogin: number
@@ -1061,13 +1252,7 @@ namespace workSpaceType {
     export type Setting = {
       lang: string
       search: {
-        ratingLimit: {
-          s: boolean,
-          q: boolean,
-          e: boolean,
-        },
-        blackList: string[],
-        quickTag: string[],
+        defaultSearchFilter: e621Type.window.dataType.searchFilter,
       },
       download: {
         format: string,
@@ -1077,7 +1262,7 @@ namespace workSpaceType {
         scale: number,
         color: string,
         transparens: boolean;
-
+        KIASTALA: boolean,
         clockFormat: string[];
         wallpaper: Unit.BaseItem.Image,
       },
@@ -1104,7 +1289,17 @@ namespace workSpaceType {
     setting: Unit.Setting,
     saves: Unit.Saves,
     history: Unit.History
-    windowsStatus: Unit.windowsStatus
+    windowsStatus?: Unit.windowsStatus
+    workSpaces: {
+      name: string
+      note?: string
+      setting: {
+        wallpaper: Unit.BaseItem.Image,
+        color: string
+      }
+      status: Unit.windowsStatus
+    }[]
+    nowWorkSpace: number
   }
 
   export type defaul = {
@@ -1120,7 +1315,9 @@ namespace MenuAction {
   export type Item =
     | [string, () => void]
     | [string, () => void, undefined]
+    | [string, () => void, undefined, boolean]
     | [string, () => void, e621Type.DragItemType.defaul]
+    | [string, () => void, e621Type.DragItemType.defaul, boolean]
 
   export type CenterPoint =
     | "tl"
@@ -1144,25 +1341,93 @@ namespace MenuAction {
   }
 }
 
+type PostsCache = Record<number, E621.Post[]>;
+type Resolution = [number, number]
+
+type createWindow = (
+  wmRef: RefObject<WindowManager<e621Type.defaul> | null>,
+  customData: e621Type.defaul,
+  other?: {
+    id?: string,
+    left?: number;
+    top?: number;
+    anchor?: WindowAnchor
+  },
+  setData?: boolean
+) => string | undefined;
+
+type EmptyAccountOption = {
+  name: string,
+  id: string,
+  password?: string,
+  color?: string,
+  avatar?: workSpaceType.Unit.BaseItem.Image,
+  wallpaper?: workSpaceType.Unit.BaseItem.Image,
+  e621?: {
+    name: string;
+    key: string;
+  }
+}
+
+type MenuButtonType = [string, MenuAction.Item[]];
+
+type dragEvent = (event: React.DragEvent<HTMLDivElement>) => void
+
+interface WindowFrameProps {
+  menulist: MenuButtonType[];
+  className?: string;
+  children: ReactNode;
+  onDrop?: dragEvent
+  onDrag?: dragEvent
+  onDragCapture?: dragEvent
+  onDragEnd?: dragEvent
+  onDragEndCapture?: dragEvent
+  onDragEnter?: dragEvent
+  onDragEnterCapture?: dragEvent
+  onDragExit?: dragEvent
+  onDragExitCapture?: dragEvent
+  onDragLeave?: dragEvent
+  onDragLeaveCapture?: dragEvent
+  onDragOver?: dragEvent
+  onDragOverCapture?: dragEvent
+  onDragStart?: dragEvent
+  onDragStartCapture?: dragEvent
+}
+// #endregion
+
 const MenuAction: MenuAction.ActionType = {
   showMenu: () => { },
   closeMenu: () => { }
 }
-
-type PostsCache = Record<number, E621.Post[]>;
 
 const someActions = {
   setAsWallpaper: (userIndex: number, url: string, post?: E621.Post,) => {
 
     setWorkSpaceStatus(prev => {
       const _ = cloneDeep(prev)
-
-      _.userList[userIndex].setting.appearance.wallpaper = {
+      const usr = _.userList[userIndex]
+      const wall: workSpaceType.Unit.BaseItem.Image = {
         url,
         positionX: 50,
         positionY: 50,
         fromPost: post
       }
+
+      usr.setting.appearance.wallpaper = wall
+      usr.workSpaces[usr.nowWorkSpace].setting!.wallpaper = wall
+
+      return _
+    })
+
+  },
+  setColor: (userIndex: number, color: string,) => {
+
+    setWorkSpaceStatus(prev => {
+      const _ = cloneDeep(prev)
+      const usr = _.userList[userIndex]
+
+      usr.setting.appearance.color = color
+      usr.workSpaces[usr.nowWorkSpace].setting!.color = color
 
       return _
     })
@@ -1199,6 +1464,21 @@ const someActions = {
       return _
     })
 
+  },
+  saveToDown: (userIndex: number, item: E621.Post) => {
+    if (item.file.url) {
+      setWorkSpaceStatus(prev => {
+        const _ = cloneDeep(prev)
+
+        _.userList[userIndex].saves.download.push({
+          id: item.id,
+          url: item.file.url!,
+          at: new Date().getTime()
+        })
+
+        return _
+      })
+    }
   },
   writeToClipboard: (data: string) => {
     navigator.clipboard.writeText(data)
@@ -1425,10 +1705,6 @@ const dragItem = (e: React.DragEvent, item: e621Type.DragItemType.defaul, ext?: 
       url = "https://e621.net/posts/" + item.data.id;
       break;
     };
-    case "postId": {
-      url = "https://e621.net/posts/" + item.data;
-      break;
-    };
     case "postImg": {
       url = item.data.file.url!;
       break;
@@ -1452,9 +1728,9 @@ const dragItem = (e: React.DragEvent, item: e621Type.DragItemType.defaul, ext?: 
 }
 
 const menuBtn = {
-  copyJSON: (data?: object) => {
+  copyJSON: (data?: object, activ?: boolean, text?: string) => {
     return data ? [[
-      t("menuButton.CopyRawJson", usrIndx),
+      text ?? t("menuButton.CopyRawJson", usrIndx),
       () => {
         navigator.clipboard.writeText(JSON.stringify(data, null, 2))
       },
@@ -1462,15 +1738,16 @@ const menuBtn = {
         type: "text",
         data: JSON.stringify(data, null, 2),
       },
+      activ
     ] as MenuAction.Item] : []
   },
-  post: (post: E621.Post, urlQue?: object, mode?: "id" | "viewer") => {
+  post: (id: number | string, post?: E621.Post | null, urlQue?: object, mode?: "id" | "viewer") => {
     return [
       [
 
         t("menuButton.OpenWithBrowser", usrIndx),
         () => {
-          open(`https://e621.net/posts/${post.id}?${makeQuery(urlQue ?? {})}`)
+          open(`https://e621.net/posts/${id}${urlQue ? "?" : ""}${makeQuery(urlQue ?? {})}`)
         },
         {
           type: "post",
@@ -1480,34 +1757,50 @@ const menuBtn = {
       ...(mode !== "viewer" ? [[
         t("menuButton.OpenWithViewer", usrIndx),
         () => {
-          someActions.openWithViewer(post)
+          if (post)
+            someActions.openWithViewer(post)
         },
         {
           type: "postImg",
           data: post
-        }
+        },
+        post ? true : false,
       ]] : []),
       ...(mode !== "id" ? [[
         t("menuButton.OpenWithGetByID", usrIndx),
         () => {
-          someActions.openWithGetByID(post)
+          if (post)
+            someActions.openWithGetByID(post)
         },
         {
           type: "post",
           data: post
-        }
+        },
+        post ? true : false,
       ]] : []),
       [
         t("menuButton.SaveToTmp", usrIndx),
         () => {
-          someActions.saveToTmp(usrIndx, {
-            type: "postGetByID",
-            data: {
-              currentId: post.id,
-              status: "success",
-              fetchedPost: post
-            }
-          }, `Post Get By ID [ ${post.id} ]`, `post_get_by_id-${post.id}`)
+          if (post)
+            someActions.saveToTmp(usrIndx, {
+              type: "postGetByID",
+              data: {
+                currentId: post.id,
+                status: "success",
+                fetchedPost: post
+              }
+            }, `Post Get By ID [ ${post.id} ]`, `post_get_by_id-${post.id}`)
+        },
+        {
+          type: "post",
+          data: post
+        },
+        post ? true : false,
+      ],
+      [
+        t("menuButton.CopyURL", usrIndx),
+        () => {
+          navigator.clipboard.writeText(`https://e621.net/posts/${id}${urlQue ? "?" : ""}${makeQuery(urlQue ?? {})}`)
         },
         {
           type: "post",
@@ -1515,59 +1808,149 @@ const menuBtn = {
         }
       ],
       [
+        t("menuButton.CopyImage", usrIndx),
+        async () => {
+          const url = post?.file.url
+          if (!url) return;
+          _app.clearNotic();
+          _app.throwNotic("載圖ing");
+          try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+
+            const data = [new ClipboardItem({ [blob.type]: blob })];
+
+            await navigator.clipboard.write(data);
+
+            _app.clearNotic();
+            _app.throwNotic("圖片已成功複製到剪貼簿！");
+          } catch (err) {
+            _app.clearNotic();
+            _app.throwNotic("複製失敗 檢查一下console");
+            console.error(err)
+          }
+        },
+        {
+          type: "postImg",
+          data: post
+        },
+        post?.file.url ? true : false
+      ],
+      [
         t("menuButton.CopyID", usrIndx),
         () => {
-          navigator.clipboard.writeText(post.id.toString())
+          navigator.clipboard.writeText(id.toString())
         },
         {
           type: "text",
-          data: post.id.toString()
+          data: id.toString()
         }
       ],
       [
         t("menuButton.SetAsWallpaper", usrIndx),
         () => {
-          someActions.setAsWallpaper(usrIndx, post.file.url!, post)
-        }
+          if (post)
+            someActions.setAsWallpaper(usrIndx, post.file.url!, post)
+        },
+        undefined,
+        post ? true : false,
       ],
       [
         t("menuButton.SetAsAvatar", usrIndx),
         () => {
-          someActions.setAvatar(usrIndx, post.file.url!, post)
-        }
+          if (post)
+            someActions.setAvatar(usrIndx, post.file.url!, post)
+        },
+        undefined,
+        post ? true : false,
       ],
-      ...menuBtn.copyJSON(post),
+      ...menuBtn.copyJSON(post ? post : {}, post ? true : false,),
     ] as MenuAction.Item[]
   }
 }
 
-type createWindow = (
-  wmRef: RefObject<WindowManager<e621Type.defaul> | null>,
-  customData: e621Type.defaul,
-  other?: {
-    id?: string,
-    left?: number;
-    top?: number;
-  }
-) => string | undefined;
+const tools = {
+  applyFiltersAndSort: (currentPosts: E621.Post[], searchFilter?: e621Type.window.dataType.searchFilter) => {
+    let result = [...currentPosts];
+    if (!searchFilter) return result;
 
-let createWindow: createWindow = () => "none";
+    const { s, q, e } = searchFilter.rating ?? {};
+    if (s || q || e) {
+      result = result.filter(post => {
+        if (post.rating === "s") return s;
+        if (post.rating === "q") return q;
+        if (post.rating === "e") return e;
+        return false;
+      });
+    }
 
-type EmptyAccountOption = {
-  name: string,
-  id: string,
-  password?: string,
-  color?: string,
-  avatar?: workSpaceType.Unit.BaseItem.Image,
-  wallpaper?: workSpaceType.Unit.BaseItem.Image,
-  e621?: {
-    name: string;
-    key: string;
+    const { vid, gif, pic } = searchFilter.type ?? {};
+    if (vid || gif || pic) {
+      result = result.filter(post => {
+        const ext = post.file.ext;
+        if (vid && (ext === "webm" || ext === "mp4")) return true;
+        if (gif && ext === "gif") return true;
+        if (pic && (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "webp")) return true;
+        return false;
+      });
+    }
+
+    if (searchFilter.sortBy) {
+      result.sort((a, b) => {
+        switch (searchFilter.sortBy) {
+          case "score": return b.score.total - a.score.total;
+          case "favs": return b.fav_count - a.fav_count;
+          case "size": return b.file.size - a.file.size;
+          case "newest":
+          default: return b.id - a.id;
+        }
+      });
+    }
+
+    if (searchFilter.reverse) {
+      result.reverse();
+    }
+
+    return result;
   }
 }
 
+const fuckingState = {
+  resolution: () => {
+    const [resolution, setResolution] = useState<Resolution>([0, 0]);
+
+    useEffect(() => {
+      const onResize = () => {
+        setResolution([window.innerWidth, window.innerHeight])
+      }
+      onResize()
+      window.addEventListener("resize", onResize)
+      return () => {
+        window.removeEventListener("resize", onResize)
+      }
+    }, [])
+
+    return resolution
+  },
+  clock: () => {
+    const [timeCode, setTimeCode] = useState<number>(new Date().getTime())
+
+    useEffect(() => {
+      const interv = setInterval(() => {
+        setTimeCode(new Date().getTime())
+      }, .2e3)
+
+      return () => clearInterval(interv)
+    }, [])
+
+    return timeCode
+  }
+}
+
+let createWindow: createWindow = () => "none";
+
 const EmptyAccount: ((option: EmptyAccountOption) => workSpaceType.User) = (opt: EmptyAccountOption) => {
-  return {
+  const _: workSpaceType.User = {
     saveInfo: {
       user: {
         name: opt.name,
@@ -1583,13 +1966,13 @@ const EmptyAccount: ((option: EmptyAccountOption) => workSpaceType.User) = (opt:
     setting: {
       lang: "en-us",
       search: {
-        ratingLimit: {
-          s: true,
-          q: false,
-          e: false,
+        defaultSearchFilter: {
+          rating: {
+            s: true,
+            e: false,
+            q: false,
+          }
         },
-        blackList: ["gore", "scat"],
-        quickTag: [],
       },
       download: {
         format: "%artist% - %id%",
@@ -1605,6 +1988,7 @@ const EmptyAccount: ((option: EmptyAccountOption) => workSpaceType.User) = (opt:
           ":HH:::mm:::ss:",
           "-dd- -MM- -YY-",
         ],
+        KIASTALA: false,
         transparens: false,
       }
     },
@@ -1619,9 +2003,26 @@ const EmptyAccount: ((option: EmptyAccountOption) => workSpaceType.User) = (opt:
       color: [],
       download: [],
     },
-    windowsStatus: []
+    windowsStatus: [],
+    nowWorkSpace: 0,
+    workSpaces: [
+      {
+        name: "Main",
+        status: [],
+        setting: {
+          wallpaper: opt.wallpaper ?? {
+            url: "/_SYSTEM/Images/root/background.png"
+          },
+          color: opt.color ?? "#ffffff",
+        }
+      }
+    ]
   }
+
+  return _
 }
+
+const newEmptyAccount = EmptyAccount({ name: "", id: "" })
 
 const DefaultCfg: workSpaceType.defaul = {
   lastUser: 1,
@@ -1646,56 +2047,42 @@ const t = (key: keyof typeof langList['en-us'], userIndex: number) => {
   }
 };
 
-const e621Info = (workSpaceStatus: workSpaceType.defaul, usrIndx: number) => {
-  const { saveInfo } = workSpaceStatus.userList[usrIndx]
+const ent = (key: keyof typeof langList['en-us']) => {
+  const list = (langList as any)["en-us"]
+
+  if (list) {
+    const tt = list[key] ?? key;
+
+    return tt
+  } else {
+    return key.match(/\.([^.]+$)/)![1]
+  }
+};
+
+const USER = (usrIndx: number) => {
+  return workSpaceStatus.userList[usrIndx]
+}
+
+const e621Info = (usrIndx: number) => {
+  const { saveInfo } = USER(usrIndx)
   return (saveInfo.user.e621 && saveInfo.user.e621.name && saveInfo.user.e621.key ? {
     name: saveInfo.user.e621.name,
     key: saveInfo.user.e621.key,
   } : undefined)
 }
 
-type MenuButtonType = [string, MenuAction.Item[]];
-
-type dragEvent = (event: React.DragEvent<HTMLDivElement>) => void
-
-interface WindowFrameProps {
-  menulist: MenuButtonType[];
-  className?: string;
-  children: ReactNode;
-  onDrop?: dragEvent
-  onDrag?: dragEvent
-  onDragCapture?: dragEvent
-  onDragEnd?: dragEvent
-  onDragEndCapture?: dragEvent
-  onDragEnter?: dragEvent
-  onDragEnterCapture?: dragEvent
-  onDragExit?: dragEvent
-  onDragExitCapture?: dragEvent
-  onDragLeave?: dragEvent
-  onDragLeaveCapture?: dragEvent
-  onDragOver?: dragEvent
-  onDragOverCapture?: dragEvent
-  onDragStart?: dragEvent
-  onDragStartCapture?: dragEvent
-}
-
 const Components = {
-  Card: ({ post, onClick, actionMenu, delay, q }: {
+  Card: ({ post, onClick, actionMenu, delay, q, event }: {
+    event?: {
+      mouseEnter?: (p: E621.Post) => void
+      mouseLeave?: (p: E621.Post) => void
+    }
     post: E621.Post,
     onClick?: MouseEventHandler<HTMLButtonElement>,
     actionMenu: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>, post: E621.Post) => void,
     delay?: number,
     q?: object
   }) => {
-    const [start, setStart] = useState<boolean>(false)
-
-    const eRef = useRef<HTMLButtonElement>(null)
-
-    useEffect(() => {
-      void eRef.current!.clientHeight
-      setStart(true)
-    }, [])
-
     const totalScore = post.score.total
     const favIsNav = totalScore === 0 ? null : totalScore < 0 ? "--" : "++"
 
@@ -1707,7 +2094,9 @@ const Components = {
     ].join("<br/>")
 
     return <button
-      ref={eRef} className={[style["Card"], start ? style["START"] : ""].join(" ")}
+      onMouseEnter={() => event?.mouseEnter?.(post)}
+      onMouseLeave={() => event?.mouseLeave?.(post)}
+      className={style["Card"]}
       key={post.id}
       onClick={onClick}
       // hover-tips={hoverTips}
@@ -1732,31 +2121,28 @@ const Components = {
 
       <div className={style["Info"]}>
         <div className={style["baseInfo"]}>
-          {["background", "text"].map(e => <div className={style[e]} key={e}>
-            <div className={style["score"]}>
-              <div className={[style["up"], favIsNav === "++" ? style["here"] : ""].join(" ")}>
-                <div className={style["icon"]}>{"+"}</div>
-                <div>{post.score.up}</div>
-              </div>
-
-              <div className={[style["down"], favIsNav === "--" ? style["here"] : ""].join(" ")}>
-                <div className={style["icon"]}>{"-"}</div>
-                <div>{Math.abs(post.score.down)}</div>
-              </div>
-
-              <div className={style["fav"]}>
-                <div className={style["icon"]}>{"<3"}</div>
-                <div>{post.fav_count}</div>
-              </div>
+          <div className={style["score"]}>
+            <div className={[style["up"], favIsNav === "++" ? style["here"] : ""].join(" ")}>
+              <div className={style["icon"]}>{"+"}</div>
+              <div>{post.score.up}</div>
             </div>
 
-            <div className={style["rating"]}>
-              <div>
-                {post.rating.toUpperCase()}
-              </div>
+            <div className={[style["down"], favIsNav === "--" ? style["here"] : ""].join(" ")}>
+              <div className={style["icon"]}>{"-"}</div>
+              <div>{Math.abs(post.score.down)}</div>
             </div>
-          </div>)}
 
+            <div className={style["fav"]}>
+              <div className={style["icon"]}>{"<3"}</div>
+              <div>{post.fav_count}</div>
+            </div>
+          </div>
+
+          <div className={style["rating"]}>
+            <div>
+              {post.rating.toUpperCase()}
+            </div>
+          </div>
         </div>
 
       </div>
@@ -1776,7 +2162,7 @@ const Components = {
       </div>
     </button>
   },
-  Post: ({ postData, thisWindow }: {
+  Post: ({ postData: post, thisWindow }: {
     postData: E621.Post,
     thisWindow?: WindowInstance<e621Type.defaul>
   }) => {
@@ -1830,17 +2216,17 @@ const Components = {
       <div className={style["Tags"]} >
         {
           ([
-            [t("components.post.Artists", usrIndx), postData?.tags.artist],
-            [t("components.post.Copyrights", usrIndx), postData?.tags.copyright],
-            [t("components.post.Character", usrIndx), postData?.tags.character],
-            [t("components.post.Species", usrIndx), postData?.tags.species],
-            [t("components.post.General", usrIndx), postData?.tags.general],
-            [t("components.post.Meta", usrIndx), postData?.tags.meta],
-            [t("components.post.Lore", usrIndx), postData?.tags.lore],
+            [t("components.post.Artists", usrIndx), post?.tags.artist],
+            [t("components.post.Copyrights", usrIndx), post?.tags.copyright],
+            [t("components.post.Character", usrIndx), post?.tags.character],
+            [t("components.post.Species", usrIndx), post?.tags.species],
+            [t("components.post.General", usrIndx), post?.tags.general],
+            [t("components.post.Meta", usrIndx), post?.tags.meta],
+            [t("components.post.Lore", usrIndx), post?.tags.lore],
             ["Source", undefined],
             ["Information", undefined],
           ] as [string, (string[] | undefined)][])
-            .filter(e => e[1]?.length || (e[0] === "Source" && postData.sources.length > 0) || e[0] === "Information")
+            .filter(e => e[1]?.length || (e[0] === "Source" && post.sources.length > 0) || e[0] === "Information")
             .map((list, indx) => {
               let dely = indx * .15
               if (list[0] === "Source")
@@ -1850,11 +2236,12 @@ const Components = {
                     style={{
                       transitionDelay: `${dely}s`
                     }}
+                    key={dely}
                   >
                     <span className={style["title"]}>{t("components.post.Source", usrIndx)}</span>
                     <div className={style["src"]}>
                       {
-                        postData.sources.map((e, indx) => <a
+                        post.sources.map((e, indx) => <a
                           kilo-style=""
                           key={indx}
                           href={e}
@@ -1873,21 +2260,22 @@ const Components = {
                   style={{
                     transitionDelay: `${dely + (indx * .01)}s`
                   }}
+                  key={dely}
                 >
                   <span className={style["title"]}>{t("components.post.Information", usrIndx)}</span>
                   <div className={style["info"]}>
                     {
                       ([
-                        ["ID", postData.id],
-                        ["MD5", postData.file.md5],
-                        [t("components.post.info.Size", usrIndx), `${postData.file.width}x${postData.file.height} (${(postData.file.size / 1024 / 1024).toFixed(2) + " MB"})`],
-                        [t("components.post.info.Type", usrIndx), postData.file.ext.toLocaleUpperCase()],
+                        ["ID", post.id],
+                        ["MD5", post.file.md5],
+                        [t("components.post.info.Size", usrIndx), `${post.file.width}x${post.file.height} (${(post.file.size / 1024 / 1024).toFixed(2) + " MB"})`],
+                        [t("components.post.info.Type", usrIndx), post.file.ext.toLocaleUpperCase()],
                         "CLIP",
-                        [t("components.post.info.Rating", usrIndx), postData.rating.toLocaleUpperCase()],
-                        [t("components.post.info.Score", usrIndx), postData.score.total],
-                        [t("components.post.info.Favs", usrIndx), postData.fav_count],
+                        [t("components.post.info.Rating", usrIndx), post.rating.toLocaleUpperCase()],
+                        [t("components.post.info.Score", usrIndx), post.score.total],
+                        [t("components.post.info.Favs", usrIndx), post.fav_count],
                         "CLIP",
-                        [t("components.post.info.Posted", usrIndx), dateToString(postData.created_at)],
+                        [t("components.post.info.Posted", usrIndx), dateToString(post.created_at)],
                       ] as ([string, string] | "CLIP")[]).map((e, indx) => {
                         if (e === "CLIP") {
                           return <>
@@ -1931,6 +2319,7 @@ const Components = {
                         style={{
                           transitionDelay: `${dely + (indx * .01)}s`
                         }}
+                        key={indx}
                       >
                         <div
                           className={[
@@ -1969,18 +2358,12 @@ const Components = {
                         <div
                           className={style["name"]}
                           onClick={() => {
-                            const createAt = new Date().getTime()
-                            wmRef.current?.createWindow({
-                              id: `post_search-${createAt}`,
-                              title: `Post Search [ ${createAt} ]`,
-                              children: <windowsType.postSearch id={`${createAt}`} />,
-                              customData: {
-                                type: "postSearch",
-                                data: {
-                                  nowPage: 1,
-                                  pageCache: [],
-                                  searchTags: [tag],
-                                }
+                            createWindow(wmRef, {
+                              type: "postSearch",
+                              data: {
+                                nowPage: 1,
+                                pageCache: [],
+                                searchTags: [tag],
                               }
                             })
                           }}
@@ -2004,7 +2387,7 @@ const Components = {
       <div className={style["Preview"]}>
 
         {(() => {
-          switch (postData?.file.ext) {
+          switch (post?.file.ext) {
             case "jpg":
             case "jpeg":
             case "png":
@@ -2015,41 +2398,54 @@ const Components = {
                   className={style["Viewer"]}
                   tTranslate={{
                     "resetTransform": t("windowsType.viewer.ResetTransform", usrIndx),
-                    "randerMode": t("windowsType.viewer.RanderMode", usrIndx),
-                    "randerMode.auto": t("windowsType.viewer.RanderMode.Auto", usrIndx),
-                    "randerMode.pixelated": t("windowsType.viewer.RanderMode.Pixelated", usrIndx),
+                    "randerMode": t("windowsType.viewer.RenderMode", usrIndx),
+                    "randerMode.auto": t("windowsType.viewer.RenderMode.Auto", usrIndx),
+                    "randerMode.pixelated": t("windowsType.viewer.RenderMode.Pixelated", usrIndx),
                   }}
                 >
-                  <img src={postData?.file.url!} />
+                  <img src={post?.file.url!} loading="lazy" />
                 </Viewer>
               </div>
 
             case "webm":
             case "mp4":
               return <div className={style["Video"]}>
-                <video src={postData?.file.url!} controls loop muted />
+                <video src={post?.file.url!} controls loop muted />
               </div>
 
           }
         })()}
+
+        <div className={style["BaseInfo"]}>
+          <div className={style["arts"]}>
+            {post.tags.artist.join(",")}
+          </div>
+          <div className={style["info"]}>
+            <span>{post.rating.toLocaleUpperCase()}</span>
+            <span>{`#${post.id}`}</span>
+            <span>{`+ ${post.score.up}`}</span>
+            <span>{`- ${Math.abs(post.score.down)}`}</span>
+            <span>{`<3 ${post.fav_count}`}</span>
+          </div>
+        </div>
 
         <div className={style["Action"]}>
 
           <button
             kiase-style=""
             onClick={() => {
-              someActions.openWithViewer(postData)
+              someActions.openWithViewer(post)
             }}
             draggable
             onDragStart={(e) => {
-              dragItem(e, { type: "postImg", data: postData })
+              dragItem(e, { type: "postImg", data: post })
             }}
           >{t("menuButton.OpenWithViewer", usrIndx)}</button>
 
           <button
             kiase-style=""
             onClick={(e) => {
-              someActions.setAsWallpaper(usrIndx, postData?.file.url!, postData)
+              someActions.setAsWallpaper(usrIndx, post?.file.url!, post)
             }}
             style={{ marginLeft: "auto" }}
           >{t("menuButton.SetAsWallpaper", usrIndx)}</button>
@@ -2067,10 +2463,10 @@ const Components = {
                   } else if (parentData.componentType === "pool") {
                     q = `pool:${parentData.customData.data.poolId}`
                   }
-                  dragItem(e, { type: "post", data: postData }, { q })
+                  dragItem(e, { type: "post", data: post }, { q })
                 }
               } else {
-                dragItem(e, { type: "post", data: postData })
+                dragItem(e, { type: "post", data: post })
               }
             }}
             onClick={() => {
@@ -2083,10 +2479,10 @@ const Components = {
                   } else if (parentData.componentType === "pool") {
                     q = `pool:${parentData.customData.data.poolId}`
                   }
-                  open(`https://e621.net/posts/${postData?.id}?${makeQuery({ q })}`)
+                  open(`https://e621.net/posts/${post?.id}?${makeQuery({ q })}`)
                 }
               } else if (thisWindow?.customData?.type === "postGetByID") {
-                open(`https://e621.net/posts/${postData?.id}`)
+                open(`https://e621.net/posts/${post?.id}`)
               }
             }}
           >{t("menuButton.OpenWithBrowser", usrIndx)}</button>
@@ -2095,20 +2491,20 @@ const Components = {
         <div className={style["SubPost"]}>
 
           <div>
-            {postData.relationships.parent_id ? ((prnt: number) => {
+            {post.relationships.parent_id ? ((prnt: number) => {
               return <button
                 kiase-style=""
                 onClick={() => createWindow(wmRef, { type: "postGetByID", data: { status: "loading", currentId: prnt } })}
                 draggable
                 onDragStart={(e) => dragItem(e, { type: "postId", data: prnt })}
               >{t("components.post.parent", usrIndx) + prnt}</button>
-            })(postData.relationships.parent_id)
+            })(post.relationships.parent_id)
               : <div />}
           </div>
 
           <div>
 
-            {postData.relationships.children.length > 0 ? ((child: number[]) => {
+            {post.relationships.children.length > 0 ? ((child: number[]) => {
               const moreThenOne = child.length > 1
               return <button
                 kiase-style=""
@@ -2129,13 +2525,13 @@ const Components = {
               >{
                   t("components.post.children", usrIndx)
                   +
-                  (moreThenOne ? t("components.post.moreThenOne", usrIndx).replace("$1", child.length) : child[0])}</button>
-            })(postData.relationships.children)
+                  (moreThenOne ? t("components.post.moreThanOne", usrIndx).replace("$1", child.length) : child[0])}</button>
+            })(post.relationships.children)
               : <div />}
           </div>
 
           <div>
-            {postData.pools.length > 0 ? ((pool: number[]) => {
+            {post.pools.length > 0 ? ((pool: number[]) => {
               const moreThenOne = pool.length > 1
               return <button
                 kiase-style=""
@@ -2156,15 +2552,15 @@ const Components = {
               >{
                   t("components.post.pool", usrIndx)
                   +
-                  (moreThenOne ? t("components.post.moreThenOne", usrIndx).replace("$1", pool.length) : pool[0])}</button>
-            })(postData.pools)
+                  (moreThenOne ? t("components.post.moreThanOne", usrIndx).replace("$1", pool.length) : pool[0])}</button>
+            })(post.pools)
               : <div />}
           </div>
 
         </div>
 
         <div className={style["Description"]}>
-          {postData?.description.split("\n").map(e => <>{e}<br /></>)}
+          {post?.description.split("\n").map((e, i) => <>{e}<br key={i} /></>)}
         </div>
 
       </div>
@@ -2174,22 +2570,13 @@ const Components = {
 
 const NODATA = {
   Fetching: function () {
-    const [start, setStart] = useState<boolean>(false)
-
-    const eRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-      void eRef.current!.clientHeight
-      setStart(true)
-    }, [])
-
     const Cers = (<div className={style["Cers"]}>
       {
         [
           [400, 15, 6],
           [250, 12, 4],
           [100, 10, 2],
-        ].map((e, i) => <div className={style["cer"]}>
+        ].map((e, i) => <div className={style["cer"]} key={i}>
           <div className={style["Scale"]}
             style={{
               transitionDelay: `${i * .2}s`
@@ -2206,7 +2593,7 @@ const NODATA = {
 
     </div>)
 
-    return (<div ref={eRef} className={[style["Fetching"], start ? style["START"] : ""].join(" ")}>
+    return (<div className={style["Fetching"]}>
       {Cers}
       <div className={style["Line"]}>
         {Cers}
@@ -2217,20 +2604,24 @@ const NODATA = {
     </div>)
   },
   None: function () {
-    const [start, setStart] = useState<boolean>(false)
-
-    const eRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-      void eRef.current!.clientHeight
-      setStart(true)
-    }, [])
-
-    return (<div ref={eRef} className={[style["None"], start ? style["START"] : ""].join(" ")}>
+    return (<div className={style["None"]}>
       <div className={style["Text"]}>
         {functions.htmlElement.splitToElement("NO DATA", (e, i) => <div key={i} className={style["case"]}>{e}</div>)}
       </div>
     </div>)
+  },
+  Error: function ({ error, Reload }: { error: string, Reload: () => void }) {
+    return (
+      <div className={style["Error"]}>
+        <div>
+          {error}
+          <br />
+          我懶惰寫界面
+          <br />
+          <span onClick={Reload}>retry</span>
+        </div>
+      </div>
+    )
   },
 }
 
@@ -2312,17 +2703,6 @@ const WINDOW_FRAME = ({
             </button>
           )}
         </div>
-        <div className={style["background"]}>
-          {menulist.map((btns, i) =>
-            <button
-              key={i}
-              kiase-style=""
-              style={{ zIndex: menulist.length - i }}
-            >
-              <div>{btns[0]}</div>
-            </button>
-          )}
-        </div>
       </div>
 
       <div
@@ -2349,8 +2729,6 @@ const WINDOW_FRAME = ({
   </>
 }
 
-type windowProp = { id: string }
-
 const windowAction: (windowID: string, other?: MenuAction.Item[]) => MenuButtonType = (windowID, other) => [
   t("menuButton.top.Window", usrIndx),
   [
@@ -2366,125 +2744,232 @@ const windowAction: (windowID: string, other?: MenuAction.Item[]) => MenuButtonT
   ],
 ]
 
-const windowsType = {
-  postSearch: function ({ id }: windowProp) {
+namespace searchWindow {
 
-    const windowID = `post_search-${id}`
-    const thisWindow = wmRef.current?.getWindow(windowID)!
+  const JumpToPageOverlay = ({
+    jupToPage,
+    jupPage,
+    setJupPage,
+    setJupToPage,
+    setPage
+  }: {
+    jupToPage: boolean,
+    jupPage: number,
+    setJupPage: (p: number) => void,
+    setJupToPage: (b: boolean) => void,
+    setPage: (p: number | ((prev: number) => number)) => void
+  }) => {
+    const touchAreaRef = useRef<HTMLDivElement>(null);
+    const backButtonRef = useRef<HTMLButtonElement>(null);
+    const backLineRef = useRef<HTMLDivElement>(null);
+    const applyButtonRef = useRef<HTMLButtonElement>(null);
+    const applyLineRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
-    const savedData = thisWindow?.customData?.type === "postSearch"
-      ? thisWindow.customData.data
-      : undefined;
+    useEffect(() => {
+      const offset = 200
+
+      let startPointX = 0
+      let x = 0
+
+      const touchArea = touchAreaRef.current
+      const backButton = backButtonRef.current
+      const backLine = backLineRef.current
+      const applyButton = applyButtonRef.current
+      const applyLine = applyLineRef.current
+
+      const isLoad = touchArea && backButton && backLine && applyButton && applyLine
+
+      if (!isLoad) return;
+      if (!jupToPage) return;
+
+      const onTouchStart = (e: TouchEvent) => {
+        startPointX = e.touches[0].clientX
+      }
+
+      const onTouchMove = (e: TouchEvent) => {
+        x = startPointX - e.touches[0].clientX
+
+        const _x = x / 7
+
+        if (x > 0) {
+          applyButton.style.transform = ""
+          applyLine.style.transform = ""
+
+          backButton.style.transform = `translateX(-${_x}px)`
+          backLine.style.transform = `translateX(-${_x}px)`
+        } else {
+          backButton.style.transform = ""
+          backLine.style.transform = ""
+
+          applyButton.style.transform = `translateX(${Math.abs(_x)}px)`
+          applyLine.style.transform = `translateX(${_x}px)`
+        }
+
+        if (x > offset) {
+          applyButton.style.opacity = ""
+          applyLine.style.opacity = ""
+          backButton.style.opacity = ".5"
+          backLine.style.opacity = ".5"
+        } else if (x < -offset) {
+          backButton.style.opacity = ""
+          backLine.style.opacity = ""
+          applyButton.style.opacity = ".5"
+          applyLine.style.opacity = ".5"
+        } else {
+          backButton.style.opacity = ""
+          backLine.style.opacity = ""
+          applyButton.style.opacity = ""
+          applyLine.style.opacity = ""
+        }
+
+      }
+
+      const onTouchEnd = (e: TouchEvent) => {
+        startPointX = 0
+
+        if (x > offset) {
+          setJupToPage(false)
+          backButton.click()
+        } else if (x < -offset) {
+          setJupToPage(false)
+          applyButton.click()
+        }
+
+        backButton.style.transform = ""
+        backLine.style.transform = ""
+        applyButton.style.transform = ""
+        applyLine.style.transform = ""
+        backButton.style.opacity = ""
+        backLine.style.opacity = ""
+        applyButton.style.opacity = ""
+        applyLine.style.opacity = ""
+      }
+
+      touchArea.addEventListener("touchstart", onTouchStart)
+      touchArea.addEventListener("touchmove", onTouchMove)
+      touchArea.addEventListener("touchend", onTouchEnd)
+
+      return () => {
+        touchArea.removeEventListener("touchstart", onTouchStart)
+        touchArea.removeEventListener("touchmove", onTouchMove)
+        touchArea.removeEventListener("touchend", onTouchEnd)
+      }
+
+    }, [jupToPage, jupPage, setJupToPage, setPage]);
+
+    useEffect(() => {
+      const input = inputRef.current
+      if (!input) return;
+      if (jupToPage) input.focus();
+      else input.blur()
+    }, [jupToPage]);
+
+    return (
+      <div ref={touchAreaRef} className={[style["JumpToPage"], jupToPage && style["show"]].join(" ")}>
+        <div className={style["Inner"]}>
+          <div className={style["Back"]}>
+            <button ref={backButtonRef} onClick={() => setJupToPage(false)}>{t("windowsType.postSearch.jumpToPage.Cancel", usrIndx)}</button>
+          </div>
+          <div className={[style["line"], style["top"]].join(" ")}><div ref={backLineRef} /></div>
+          <div className={style["Input"]}>
+            {t("windowsType.postSearch.jumpToPage", usrIndx)}
+            <input
+              ref={inputRef}
+              type="number"
+              value={jupPage}
+              onChange={(e) => setJupPage(+e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setPage(~~(jupPage < 0 ? 1 : jupPage));
+                  setJupToPage(false);
+                }
+              }}
+            />
+          </div>
+          <div className={[style["line"], style["bottom"]].join(" ")}><div ref={applyLineRef} /></div>
+          <div className={style["Apply"]}>
+            <button ref={applyButtonRef} onClick={() => {
+              setPage(~~(jupPage < 0 ? 1 : jupPage));
+              setJupToPage(false);
+            }}>{t("windowsType.postSearch.jumpToPage.Apply", usrIndx)}</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  export const UnifiedPostBrowser = ({ id, mode }: { id: string, mode: "postSearch" | "pool" }) => {
+    const windowID = mode === "postSearch" ? `post_search-${id}` : `pool-${id}`;
+    const thisWindow = wmRef.current?.getWindow(windowID)!;
+
+    const savedData = thisWindow?.customData?.type === mode ? thisWindow.customData.data : undefined;
 
     const [page, setPage] = useState<number>(savedData?.nowPage ?? 1);
-    const [searchTags, setSearchTags] = useState<string[]>(savedData?.searchTags ?? ["yonkagor", "webm"]);
-    const [searchTagsInput, setSearchTagsInput] = useState<string[]>(searchTags);
-
     const [postsCache, setPostsCache] = useState<PostsCache>(savedData?.pageCache ?? {});
     const [jupToPage, setJupToPage] = useState<boolean>(false);
     const [jupPage, setJupPage] = useState<number>(1);
-    const [searchFilter, setSearchFilter] = useState<e621Type.window.dataType.searchFilter>({});
-    const [filterPanel, setFilterPanel] = useState<boolean>(false);
-
     const [isFocuOnIt, setFocuOnIt] = useState<boolean>(false);
 
-    const currentPosts = useMemo(() => postsCache[page] || [], [postsCache, page]);
+    const [searchTags, setSearchTags] = useState<string[]>(mode === "postSearch" ? ((savedData as e621Type.window.dataType.postSearch)?.searchTags ?? ["yonkagor", "webm"]) : []);
+    const [searchTagsInput, setSearchTagsInput] = useState<string[]>(searchTags);
+    const [searchFilter, setSearchFilter] = useState<e621Type.window.dataType.searchFilter>(savedData?.searchFilter ?? {});
+    const [filterPanel, setFilterPanel] = useState<boolean>(false);
 
-    const processedPosts = useMemo(() => {
-      let result = [...currentPosts];
+    const [poolIdInput, setPoolIdInput] = useState<string | number>(mode === "pool" ? ((savedData as e621Type.window.dataType.pool)?.poolId || id || "") : "");
+    const [poolId, setPoolId] = useState<number>(mode === "pool" ? ((savedData as e621Type.window.dataType.pool)?.poolId || Number(id) || 0) : 0);
+    const [poolInfo, setPoolInfo] = useState<E621.Pool | undefined>(mode === "pool" ? (savedData as e621Type.window.dataType.pool)?.poolInfo : undefined);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
-      const { s, q, e } = searchFilter.rating ?? {};
-      if (s || q || e) {
-        result = result.filter(post => {
-          if (post.rating === "s") return s;
-          if (post.rating === "q") return q;
-          if (post.rating === "e") return e;
-          return false;
-        });
-      }
-
-      const { vid, gif, pic } = searchFilter.type ?? {};
-      if (vid || gif || pic) {
-        result = result.filter(post => {
-          const ext = post.file.ext;
-          if (vid && (ext === "webm" || ext === "mp4")) return true;
-          if (gif && ext === "gif") return true;
-          if (pic && (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "webp")) return true;
-          return false;
-        });
-      }
-
-      if (searchFilter.sortBy) {
-        result.sort((a, b) => {
-          switch (searchFilter.sortBy) {
-            case "score":
-              return b.score.total - a.score.total;
-            case "favs":
-              return b.fav_count - a.fav_count;
-            case "size":
-              return b.file.size - a.file.size;
-            case "newest":
-            default:
-              return b.id - a.id;
-          }
-        });
-      }
-
-      if (searchFilter.reverse) {
-        result.reverse();
-      }
-
-      return result;
-    }, [currentPosts, searchFilter]);
+    const [peekPre, setPeekPre] = useState<E621.Post | undefined>();
 
     const [fetchId, setFetchId] = useState<number>(0);
     const fetchIdRef = useRef<number>(0);
     fetchIdRef.current = fetchId;
-
-    const postsCacheRef = useRef<PostsCache>(postsCache);
-    postsCacheRef.current = postsCache;
-
     const fetchingPages = useRef<Set<string>>(new Set());
     const fetchQueueRef = useRef<Promise<void>>(Promise.resolve());
-
     const scrollPage = useRef<HTMLDivElement>(null);
 
-    const fetchPageData = useCallback(async (targetPage: number, currentTags: string[], currentFetchId: number) => {
-      const pageKey = `${currentFetchId}-${targetPage}`;
+    const currentPosts = useMemo(() => postsCache[page] || [], [postsCache, page]);
+    const processedPosts = useMemo(() => tools.applyFiltersAndSort(currentPosts, searchFilter), [currentPosts, searchFilter]);
 
-      if (postsCacheRef.current[targetPage] || fetchingPages.current.has(pageKey)) {
-        return false;
+    useEffect(() => {
+      if (mode === "pool" && poolId !== 0 && (!poolInfo || poolInfo.id !== poolId)) {
+        LABS_E621_API.pools.get({ id: poolId }).then(info => {
+          if (info) setPoolInfo(info as any);
+        }).catch(err => Kiasole.error(`Pool Info Fetch Error: ${err}`));
       }
+    }, [poolId, mode]);
+
+    const fetchPageData = useCallback(async (targetPage: number, currentFetchId: number) => {
+      if (mode === "pool" && !poolId) return false;
+
+      const pageKey = `${currentFetchId}-${targetPage}`;
+      if (postsCache[targetPage] || fetchingPages.current.has(pageKey)) return false;
 
       fetchingPages.current.add(pageKey);
 
       const task = async () => {
         try {
-          if (currentFetchId !== fetchIdRef.current) {
-            Kiasole.log(`[背景預取] 丟棄過期請求 API (未發送): 第 ${targetPage} 頁`);
-            return;
-          }
+          if (currentFetchId !== fetchIdRef.current) return;
 
-          Kiasole.log(`[背景預取] 正在請求 API: 第 ${targetPage} 頁 (FetchID: ${currentFetchId})`);
+          const tagsQuery = mode === "postSearch" ? searchTags : [`pool:${poolId}`];
+          Kiasole.log(`[背景預取] 正在請求 API: ${mode} 第 ${targetPage} 頁`);
+
           const newPosts = await LABS_E621_API.posts.search({
-            tags: currentTags,
+            tags: tagsQuery,
             page: targetPage,
             limit: 75,
-            user: e621Info(workSpaceStatus, usrIndx)
+            user: e621Info(usrIndx)
           });
 
-          if (currentFetchId !== fetchIdRef.current) {
-            Kiasole.log(`[背景預取] 丟棄過期請求 API: 第 ${targetPage} 頁`);
-            return;
-          }
+          if (currentFetchId !== fetchIdRef.current) return;
 
-          setPostsCache((prev) => ({
-            ...prev,
-            [targetPage]: newPosts
-          }));
-
+          setPostsCache((prev) => ({ ...prev, [targetPage]: newPosts }));
+          setFetchError(null);
         } catch (err) {
           Kiasole.error(`第 ${targetPage} 頁抓取失敗 :` + err);
+          setFetchError(String(err));
         } finally {
           fetchingPages.current.delete(pageKey);
         }
@@ -2493,637 +2978,575 @@ const windowsType = {
       fetchQueueRef.current = fetchQueueRef.current.then(task);
       await fetchQueueRef.current;
       return true;
-    }, []);
+    }, [mode, poolId, searchTags]);
 
     useEffect(() => {
       let isCancelled = false;
       const currentFetchId = fetchId;
-      const currentTags = searchTags;
 
       const loadData = async () => {
-        const targetPages = [page, page + 1, page - 1, page + 2, page - 2]
-          .filter(p => p > 0);
-
+        const targetPages = [page, page + 1, page - 1, page + 2, page - 2].filter(p => p > 0);
         for (const p of targetPages) {
           if (isCancelled) break;
-          const fetched = await fetchPageData(p, currentTags, currentFetchId);
-          if (isCancelled) break;
-          if (fetched) {
-            await functions.timeSleep(1000);
+          const fetched = await fetchPageData(p, currentFetchId);
+          if (fetched) await functions.timeSleep(mode === "postSearch" ? 1000 : 500);
+        }
+      };
+      loadData();
+      return () => { isCancelled = true; };
+    }, [page, searchTags, poolId, fetchId, fetchPageData]);
+
+    useEffect(() => {
+      const handleSync = (e: Event) => {
+        const customEvent = e as CustomEvent;
+        const incomingData = customEvent.detail;
+        if (incomingData) {
+          if (incomingData.nowPage) setPage(incomingData.nowPage);
+          if (incomingData.pageCache) setPostsCache(incomingData.pageCache);
+          if (mode === "postSearch") {
+            if (incomingData.searchTags) setSearchTags(incomingData.searchTags);
+            if (incomingData.searchFilter) setSearchFilter(incomingData.searchFilter);
+          } else if (mode === "pool") {
+            if (incomingData.poolId) setPoolId(incomingData.poolId);
           }
         }
       };
+      const eventName = `SYNC_PARENT_DATA_${windowID}`;
+      window.addEventListener(eventName, handleSync);
+      return () => window.removeEventListener(eventName, handleSync);
+    }, [windowID, mode]);
 
-      loadData();
+    useEffect(() => {
+      if (thisWindow?.customData?.type !== mode) return;
+
+      let newData: any = { nowPage: page, pageCache: postsCache, searchFilter };
+      if (mode === "postSearch") {
+        newData = { ...newData, searchTags };
+        thisWindow.setTitle(`${t("windowsType.postSearch", usrIndx)} [ ${searchTags.length === 0 ? t("windowsType.postSearch.title.noTags", usrIndx) : searchTags.join(",")} ]`);
+      } else {
+        newData = { ...newData, poolId, poolInfo };
+        if (poolInfo) thisWindow.setTitle(`${t("windowsType.pool", usrIndx)} : ${poolInfo.name.replace(/_/g, " ")} [Page ${page}]`);
+        else if (poolId) thisWindow.setTitle(`${t("windowsType.pool", usrIndx)} : ${poolId} [ Page : ${page} ]`);
+        else thisWindow.setTitle(`${t("windowsType.pool", usrIndx)}`);
+      }
+
+      if (JSON.stringify(thisWindow.customData.data) !== JSON.stringify(newData)) {
+        thisWindow.setData({ type: mode, data: newData });
+
+        const wm = wmRef.current;
+        if (wm) {
+          wm.getWindows().forEach(winInfo => {
+            const childWin = wm.getWindow(winInfo.id);
+            if (childWin?.customData?.type === "post" && childWin.customData.data.parentData?.windowID === thisWindow.id) {
+              const childData = childWin.customData.data;
+              const newParentData = { ...childData.parentData, customData: { type: mode, data: newData } };
+              if (JSON.stringify(childData.parentData) !== JSON.stringify(newParentData)) {
+                childWin.setData({ type: "post", data: { ...childData, parentData: newParentData } as any });
+                window.dispatchEvent(new CustomEvent(`SYNC_PARENT_DATA_${childWin.id}`, { detail: newParentData }));
+              }
+            }
+          });
+        }
+      }
+    }, [page, postsCache, searchTags, searchFilter, poolId, poolInfo, mode]);
+
+    const refreshSearch = useCallback((newVal?: any) => {
+      setFetchError(null);
+      setPostsCache({}); setPage(1); fetchingPages.current.clear(); setFetchId(id => id + 1);
+      if (mode === "postSearch" && newVal) setSearchTags(newVal);
+      if (mode === "pool" && newVal !== undefined) {
+        const parsedId = Number(newVal) || 0;
+        setPoolId(parsedId);
+        if (parsedId !== poolId) setPoolInfo(undefined);
+      }
+    }, [mode, poolId]);
+
+    const peekPreKeyDown = useRef(false)
+
+    useEffect(() => {
+      let isdown = peekPreKeyDown.current
+
+      const display = () => {
+        if (!peekPre) return;
+        createWindow(wmRef, {
+          type: "preview",
+          data: peekPre
+        })
+      }
+
+      const keydown = (e: KeyboardEvent) => {
+        if (disableWindowKeyEvent) return;
+        if (isdown) return;
+        if (e.code === "Space") {
+          isdown = true
+          display()
+        }
+      }
+
+      const keyup = (e: KeyboardEvent) => {
+        if (e.code === "Space") {
+          isdown = false
+        }
+      }
+
+      document.addEventListener("keydown", keydown);
+      document.addEventListener("keyup", keyup);
 
       return () => {
-        isCancelled = true;
-      };
-    }, [page, searchTags, fetchId, fetchPageData]);
-
-    useEffect(() => {
-      const { current: scpg } = scrollPage
-      if (scpg) {
-        scpg.scrollTo({ top: 0 })
+        document.removeEventListener("keydown", keydown);
+        document.removeEventListener("keyup", keyup);
       }
-    }, [page])
-
-    const refreshSearch = useCallback((newTags?: string[]) => {
-      setPostsCache({});
-      setPage(1);
-
-      if (newTags) {
-        setSearchTags(newTags);
-      }
-
-      fetchingPages.current.clear();
-      setFetchId(id => id + 1);
-    }, []);
-
-    useEffect(() => {
-      if (thisWindow.customData?.type === "postSearch") {
-        thisWindow?.setData({
-          type: "postSearch",
-          data: {
-            nowPage: page,
-            pageCache: postsCache,
-            searchTags,
-            searchFilter
-          }
-        });
-      }
-    }, [page, postsCache, searchTags, searchFilter]);
-
-    const handleNextPage = () => setPage(p => p + 1);
-    const handlePrevPage = () => setPage(p => Math.max(1, p - 1));
+    }, [peekPre])
 
     useEffect(() => {
       const keydown = (e: KeyboardEvent) => {
-        if (!wmRef.current?.getWindow(thisWindow.id)?.isFocused) return;
+        if (disableWindowKeyEvent) return;
+        if (!wmRef.current?.getWindow(windowID)?.isFocused) return;
         if (e.altKey) return;
 
-        switch (e.code) {
-          case "Escape": {
-            if (jupToPage) {
-              setJupToPage(false)
-            } else {
-              setFilterPanel(false)
-            }
-            break
-          }
+        if (e.code === "Escape") {
+          if (jupToPage) setJupToPage(false);
+          else if (mode === "postSearch") setFilterPanel(false);
+          return;
         }
 
         if (jupToPage || isFocuOnIt) return;
 
-        switch (e.code) {
-          case "ArrowLeft": {
-            e.preventDefault()
-            setPage(e => e > 1 ? e - 1 : 1)
-            break
-          }
-          case "ArrowRight": {
-            e.preventDefault()
-            setPage(e => e + 1)
-            break
-          }
+        if (e.code === "ArrowLeft") {
+          e.preventDefault();
+          setPage(p => (p > 1 ? p - 1 : 1));
+        } else if (e.code === "ArrowRight") {
+          e.preventDefault();
+          setPage(p => p + 1);
         }
-        if (e.shiftKey) {
-          switch (e.code) {
-            case "KeyF": {
-              setFilterPanel(e => !e)
-              break
-            }
 
-            case "KeyJ": {
-              setJupToPage(e => !e)
-              break
-            }
+        if (e.shiftKey) {
+          if (e.code === "KeyF") setFilterPanel(v => !v);
+          if (e.code === "KeyJ") setJupToPage(v => !v);
+        }
+      };
+
+      const preventBrowserNav = (e: MouseEvent) => {
+        if (e.button === 3 || e.button === 4) StopEvent(e);
+      };
+
+      const mousedown = (e: MouseEvent) => {
+        if (disableWindowKeyEvent) return;
+        if (!wmRef.current?.getWindow(windowID)?.isFocused) return;
+
+        if (e.button === 3 || e.button === 4) {
+          if (jupToPage) {
+            if (e.button === 3) setJupToPage(false);
+            if (e.button === 4) { setJupToPage(false); setPage(Math.max(1, Math.floor(jupPage))); }
+          } else {
+            if (e.button === 3) setPage(p => (p > 1 ? p - 1 : 1));
+            if (e.button === 4) setPage(p => p + 1);
           }
         }
-      }
-      document.addEventListener("keydown", keydown)
+      };
+
+      document.addEventListener("keydown", keydown);
+      document.addEventListener("mousedown", mousedown);
+      document.addEventListener("mouseup", preventBrowserNav);
+      document.addEventListener("click", preventBrowserNav);
+      document.addEventListener("auxclick", preventBrowserNav);
 
       return () => {
-        document.removeEventListener("keydown", keydown)
-      }
-
-    }, [jupToPage, jupToPage, isFocuOnIt])
-
-    const actionMenu = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>, post: E621.Post) => {
-      event.stopPropagation()
-      event.preventDefault()
-      const btn = event.currentTarget
-      const btnRect = btn.getBoundingClientRect()
-      const x = btnRect.bottom
-      const y = btnRect.left
-      MenuAction.showMenu(menuBtn.post(post, { q: searchTags.join(" ") }), [x, y])
-    }
-
-    const showLoading = !postsCache[page];
+        document.removeEventListener("keydown", keydown);
+        document.removeEventListener("mousedown", mousedown);
+        document.removeEventListener("mouseup", preventBrowserNav);
+        document.removeEventListener("click", preventBrowserNav);
+        document.removeEventListener("auxclick", preventBrowserNav);
+      };
+    }, [jupToPage, jupPage, isFocuOnIt, windowID, mode]);
 
     useEffect(() => {
-      const statusOffset = 50
-      const offset = 200
-
-      let startPointX = 0
-      let startPointY = 0
-
-      let status: "NONE" | "X" | "Y" = "NONE"
-
-      let x = 0
-      let y = 0
-
-      const touchArea = scrollPage.current
+      const statusOffset = 50;
+      const offset = 200;
+      let startPointX = 0, startPointY = 0;
+      let status: "NONE" | "X" | "Y" = "NONE";
+      let x = 0, y = 0;
+      const touchArea = scrollPage.current;
 
       if (jupToPage) return;
 
       const onTouchStart = (e: TouchEvent) => {
         if (!touchArea) return;
-
-        startPointX = e.touches[0].clientX
-        startPointY = e.touches[0].clientY
+        startPointX = e.touches[0].clientX;
+        startPointY = e.touches[0].clientY;
       }
-
       const onTouchMove = (e: TouchEvent) => {
         if (!touchArea) return;
-
-        x = startPointX - e.touches[0].clientX
-        y = startPointY - e.touches[0].clientY
-
+        x = startPointX - e.touches[0].clientX;
+        y = startPointY - e.touches[0].clientY;
         if (status === "X") e.preventDefault();
-
         if (status === "Y") { x = 0; return; }
 
-        const transform = () => {
-          touchArea.style.transform = `translateX(${-1 * (x / 10)}px)`
-        }
-
-        if (x > offset) {
-          touchArea.style.opacity = ".5"
-          transform()
-        } else if (x < -offset) {
-          if (page === 1) return;
-          touchArea.style.opacity = ".5"
-          transform()
+        const transform = () => { touchArea.style.transform = `translateX(${-1 * (x / 10)}px)` }
+        if (x > offset || (x < -offset && page > 1)) {
+          touchArea.style.opacity = ".5"; transform();
         } else {
-          touchArea.style.opacity = ""
-          transform()
+          touchArea.style.opacity = ""; transform();
         }
-
         if (status !== "NONE") return;
         if (x > statusOffset || x < -statusOffset) status = "X";
         if (y > statusOffset || y < -statusOffset) status = "Y";
       }
-
       const onTouchEnd = () => {
         if (!touchArea) return;
-
         startPointX = 0;
-
-        if (x > offset) {
-          setPage(e => e + 1)
-          void touchArea.clientHeight
-        } else if (x < -offset) {
-          setPage(e => e > 1 ? e - 1 : 1)
-          void touchArea.clientHeight
-        }
-        touchArea.style.transform = ""
-        touchArea.style.opacity = ""
-
-        status = "NONE"
+        if (x > offset) { setPage(e => e + 1); void touchArea.clientHeight; }
+        else if (x < -offset) { setPage(e => e > 1 ? e - 1 : 1); void touchArea.clientHeight; }
+        touchArea.style.transform = ""; touchArea.style.opacity = "";
+        status = "NONE";
       }
 
       touchArea?.addEventListener("touchstart", onTouchStart)
       touchArea?.addEventListener("touchmove", onTouchMove)
       touchArea?.addEventListener("touchend", onTouchEnd)
-
       return () => {
         touchArea?.removeEventListener("touchstart", onTouchStart)
         touchArea?.removeEventListener("touchmove", onTouchMove)
         touchArea?.removeEventListener("touchend", onTouchEnd)
       }
+    }, [jupToPage, page, scrollPage.current]);
 
-    }, [jupToPage, page, scrollPage.current])
+    useEffect(() => {
+      if (scrollPage.current) scrollPage.current.scrollTo({ top: 0 });
+    }, [page]);
 
-    const JumpToPageOverlay = useMemo(() => {
-      const _ = ({
-        jupToPage,
-        jupPage,
-        setJupPage,
-        setJupToPage,
-        setPage
-      }: {
-        jupToPage: boolean,
-        jupPage: number,
-        setJupPage: (p: number) => void,
-        setJupToPage: (b: boolean) => void,
-        setPage: (p: number | ((prev: number) => number)) => void
-      }) => {
-        const touchAreaRef = useRef<HTMLDivElement>(null);
-        const backButtonRef = useRef<HTMLButtonElement>(null);
-        const backLineRef = useRef<HTMLDivElement>(null);
-        const applyButtonRef = useRef<HTMLButtonElement>(null);
-        const applyLineRef = useRef<HTMLDivElement>(null);
-        const inputRef = useRef<HTMLInputElement>(null);
 
-        useEffect(() => {
-          const offset = 200
+    const showLoading = mode === "pool" ? (poolId !== 0 && !postsCache[page]) : !postsCache[page];
 
-          let startPointX = 0
-          let x = 0
+    const actionMenu = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>, post: E621.Post) => {
+      event.stopPropagation(); event.preventDefault();
+      const btnRect = event.currentTarget.getBoundingClientRect();
+      const query = mode === "postSearch" ? searchTags.join(" ") : `pool:${poolId}`;
+      MenuAction.showMenu(menuBtn.post(post.id, post, { q: query }), [btnRect.bottom, btnRect.left]);
+    }
 
-          const touchArea = touchAreaRef.current
-          const backButton = backButtonRef.current
-          const backLine = backLineRef.current
-          const applyButton = applyButtonRef.current
-          const applyLine = applyLineRef.current
-
-          const isLoad = touchArea && backButton && backLine && applyButton && applyLine
-
-          if (!isLoad) return;
-          if (!jupToPage) return;
-
-          const onTouchStart = (e: TouchEvent) => {
-            startPointX = e.touches[0].clientX
-          }
-
-          const onTouchMove = (e: TouchEvent) => {
-            x = startPointX - e.touches[0].clientX
-
-            const _x = x / 7
-
-            if (x > 0) {
-              applyButton.style.transform = ""
-              applyLine.style.transform = ""
-
-              backButton.style.transform = `translateX(-${_x}px)`
-              backLine.style.transform = `translateX(-${_x}px)`
-            } else {
-              backButton.style.transform = ""
-              backLine.style.transform = ""
-
-              applyButton.style.transform = `translateX(${Math.abs(_x)}px)`
-              applyLine.style.transform = `translateX(${_x}px)`
-            }
-
-            if (x > offset) {
-              applyButton.style.opacity = ""
-              applyLine.style.opacity = ""
-              backButton.style.opacity = ".5"
-              backLine.style.opacity = ".5"
-            } else if (x < -offset) {
-              backButton.style.opacity = ""
-              backLine.style.opacity = ""
-              applyButton.style.opacity = ".5"
-              applyLine.style.opacity = ".5"
-            } else {
-              backButton.style.opacity = ""
-              backLine.style.opacity = ""
-              applyButton.style.opacity = ""
-              applyLine.style.opacity = ""
-            }
-
-          }
-
-          const onTouchEnd = (e: TouchEvent) => {
-            startPointX = 0
-
-            if (x > offset) {
-              setJupToPage(false)
-              backButton.click()
-            } else if (x < -offset) {
-              setJupToPage(false)
-              applyButton.click()
-            }
-
-            backButton.style.transform = ""
-            backLine.style.transform = ""
-            applyButton.style.transform = ""
-            applyLine.style.transform = ""
-            backButton.style.opacity = ""
-            backLine.style.opacity = ""
-            applyButton.style.opacity = ""
-            applyLine.style.opacity = ""
-          }
-
-          touchArea.addEventListener("touchstart", onTouchStart)
-          touchArea.addEventListener("touchmove", onTouchMove)
-          touchArea.addEventListener("touchend", onTouchEnd)
-
-          return () => {
-            touchArea.removeEventListener("touchstart", onTouchStart)
-            touchArea.removeEventListener("touchmove", onTouchMove)
-            touchArea.removeEventListener("touchend", onTouchEnd)
-          }
-
-        }, [jupToPage, jupPage, setJupToPage, setPage]);
-
-        useEffect(() => {
-          const input = inputRef.current
-          if (!input) return;
-          if (jupToPage) input.focus();
-          else input.blur()
-        }, [jupToPage]);
-
-        return (
-          <div ref={touchAreaRef} className={[style["JumpToPage"], jupToPage && style["show"]].join(" ")}>
-            <div className={style["Inner"]}>
-              <div className={style["Back"]}>
-                <button ref={backButtonRef} onClick={() => setJupToPage(false)}>{t("windowsType.postSearch.jumpToPage.Cancel", usrIndx)}</button>
-              </div>
-              <div className={[style["line"], style["top"]].join(" ")}><div ref={backLineRef} /></div>
-              <div className={style["Input"]}>
-                {t("windowsType.postSearch.jumpToPage", usrIndx)}
-                <input
-                  ref={inputRef}
-                  type="number"
-                  value={jupPage}
-                  onChange={(e) => setJupPage(+e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      setPage(~~(jupPage < 0 ? 1 : jupPage));
-                      setJupToPage(false);
-                    }
-                  }}
-                />
-              </div>
-              <div className={[style["line"], style["bottom"]].join(" ")}><div ref={applyLineRef} /></div>
-              <div className={style["Apply"]}>
-                <button ref={applyButtonRef} onClick={() => {
-                  setPage(~~(jupPage < 0 ? 1 : jupPage));
-                  setJupToPage(false);
-                }}>{t("windowsType.postSearch.jumpToPage.Apply", usrIndx)}</button>
-              </div>
-            </div>
-          </div>
-        );
-      };
-
-      return _
-    }, [])
-
-    return (
-      <>
-        <WINDOW_FRAME
-          className={style["postSearch"]}
-          menulist={[
-            windowAction(windowID, [[
-              t("menuButton.Clone", usrIndx),
-              () => {
-                createWindow(wmRef, thisWindow?.customData!)
-              },
-              thisWindow.customData?.type === "postSearch" ? {
-                type: "postSearch",
+    const generateMenuList = () => {
+      let list: any = [
+        windowAction(windowID, [[
+          t("menuButton.Clone", usrIndx),
+          () => createWindow(wmRef, thisWindow?.customData!),
+          thisWindow?.customData?.type === mode ? {
+            type: mode,
+            thisWindow,
+            data: thisWindow.customData.data
+          } as any : undefined
+        ]]),
+        [
+          t("menuButton.top.Data", usrIndx),
+          [
+            [
+              t("menuButton.Reload", usrIndx),
+              () => refreshSearch(mode === "pool" ? poolId : undefined)
+            ]
+          ]
+        ],
+        [
+          t("menuButton.top.Other", usrIndx),
+          [
+            [
+              t("menuButton.SaveToTmp", usrIndx),
+              () => someActions.saveToTmp(usrIndx, cloneDeep(wmRef.current!.getWindow(thisWindow!.id!)!.customData!), thisWindow!.title, windowID),
+              thisWindow?.customData?.type === mode ? {
+                type: mode,
                 thisWindow,
                 data: thisWindow.customData.data
               } : undefined
-            ]
-            ]), [
-              t("menuButton.top.Data", usrIndx),
-              [[
-                t("menuButton.Reload", usrIndx),
-                () => refreshSearch()
-              ],
-              ],
-            ], [
-              t("menuButton.top.Other", usrIndx),
-              [[
-                t("menuButton.SaveToTmp", usrIndx),
-                () => {
-                  someActions.saveToTmp(usrIndx, cloneDeep(wmRef.current!.getWindow(thisWindow.id!)!.customData!), thisWindow.title, windowID)
-                },
-                thisWindow.customData?.type === "postSearch" ? {
-                  type: "postSearch",
-                  thisWindow,
-                  data: thisWindow.customData.data
-                } : undefined
-              ],
-              ...menuBtn.copyJSON(currentPosts),
-              ],
             ],
-          ]}
+            ...(mode === "postSearch" ? [...menuBtn.copyJSON(currentPosts), ...menuBtn.copyJSON(postsCache, true, "CopyFullJSON")] : menuBtn.copyJSON(poolInfo))
+          ]
+        ]
+      ];
+      return list;
+    };
 
-          onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
-          onDrop={e => {
-            if (!e.dataTransfer) return;
-
-            const itemdata = e.dataTransfer.getData(e621Type.DragItemType.appname)
-
-            if (itemdata) {
-              const item: e621Type.DragItemType.defaul = JSON.parse(itemdata)
-              const { data, type } = item
-              if (type === "tag") {
-                let newTags = [...searchTagsInput];
-                switch (data.action) {
-                  case "+": {
-                    if (newTags.some(e => e === "-" + data.tag)) {
-                      newTags = newTags.filter(e => e !== "-" + data.tag)
-                    } else if (!newTags.some(e => e === data.tag)) {
-                      newTags.push(data.tag)
-                    }
-                    StopEvent(e)
-                    break;
+    return (
+      <WINDOW_FRAME
+        className={style[mode]}
+        menulist={generateMenuList()}
+        onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+        onDrop={e => {
+          if (!e.dataTransfer) return;
+          const itemdata = e.dataTransfer.getData(e621Type.DragItemType.appname);
+          if (itemdata) {
+            const item: e621Type.DragItemType.defaul = JSON.parse(itemdata);
+            if (mode === "postSearch" && item.type === "tag") {
+              let newTags = [...searchTagsInput];
+              const { data } = item
+              switch (data.action) {
+                case "+": {
+                  if (newTags.some(e => e === "-" + data.tag)) {
+                    newTags = newTags.filter(e => e !== "-" + data.tag)
+                  } else if (!newTags.some(e => e === data.tag)) {
+                    newTags.push(data.tag)
                   }
-                  case "-": {
-                    if (newTags.some(e => e === data.tag)) {
-                      newTags = newTags.filter(e => e !== data.tag)
-                    } else if (!newTags.some(e => e === "-" + data.tag)) {
-                      newTags.push("-" + data.tag)
-                    }
-                    StopEvent(e)
-                    break;
-                  }
+                  StopEvent(e)
+                  break;
                 }
-                setSearchTagsInput(newTags)
+                case "-": {
+                  if (newTags.some(e => e === data.tag)) {
+                    newTags = newTags.filter(e => e !== data.tag)
+                  } else if (!newTags.some(e => e === "-" + data.tag)) {
+                    newTags.push("-" + data.tag)
+                  }
+                  StopEvent(e)
+                  break;
+                }
               }
+              setSearchTagsInput(newTags)
             }
-          }}
-        >
-
-          <div className={style["PaginationControls"]} >
-            <div />
-            <div className={style["InnerFrame"]}>
-              <button kiase-style="" onClick={handlePrevPage} disabled={page === 1}>{"<"}</button>
-              <button kiase-style="" onClick={() => { setJupToPage(true); setJupPage(page) }} >{t("windowsType.postSearch.page", usrIndx).replace("$1", page)}</button>
-              <button kiase-style="" onClick={handleNextPage}>{">"}</button>
-            </div>
+          }
+        }}
+      >
+        <div className={style["PaginationControls"]} >
+          <div />
+          <div className={style["InnerFrame"]}>
+            <button kiase-style="" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>{"<"}</button>
+            <button kiase-style="" onClick={() => { setJupToPage(true); setJupPage(page) }} >
+              {mode === "postSearch" ? t("windowsType.postSearch.page", usrIndx).replace("$1", page) : `Page ${page}`}
+            </button>
+            <button kiase-style="" onClick={() => setPage(p => p + 1)}>{">"}</button>
           </div>
+        </div>
 
-          <div className={style["TagEditor"]} >
-            <div className={style["InnerFrame"]}>
-              <input
-                type="text"
-                value={searchTagsInput.join(" ")}
-                onInput={(e) => setSearchTagsInput(e.currentTarget.value.split(" "))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.code === "NumpadEnter") {
-                    if (searchTagsInput.join(" ") === searchTags.join(" ")) return;
-                    refreshSearch(searchTagsInput);
-                  }
-                }}
-                onFocus={() => { setFocuOnIt(true) }}
-                onBlur={() => { setFocuOnIt(false) }}
-              />
-              <button className={[filterPanel && style["activ"]].join(" ")} onClick={() => setFilterPanel(e => !e)}>
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z" /></svg>
-              </button>
-            </div>
-            <div />
+        <div className={style["TagEditor"]} >
+          <div className={style["InnerFrame"]}>
+            {mode === "postSearch" ? (
+              <input type="text" value={searchTagsInput.join(" ")} onInput={(e) => setSearchTagsInput(e.currentTarget.value.split(" "))}
+                onKeyDown={(e) => { if ((e.key === "Enter" || e.code === "NumpadEnter") && searchTagsInput.join(" ") !== searchTags.join(" ")) refreshSearch(searchTagsInput); }}
+                onFocus={() => setFocuOnIt(true)} onBlur={() => setFocuOnIt(false)} />
+            ) : (
+              <input type="text" value={poolIdInput} placeholder="Input Pool ID..." onInput={(e) => setPoolIdInput(e.currentTarget.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.code === "NumpadEnter") refreshSearch(Number(poolIdInput)); }}
+                onFocus={() => setFocuOnIt(true)} onBlur={() => setFocuOnIt(false)} />
+            )}
+            <button className={[filterPanel && style["activ"]].join(" ")} onClick={() => setFilterPanel(e => !e)}>
+              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z" /></svg>
+            </button>
           </div>
+        </div>
 
-          <JumpToPageOverlay
-            jupToPage={jupToPage}
-            jupPage={jupPage}
-            setJupPage={setJupPage}
-            setJupToPage={setJupToPage}
-            setPage={setPage}
-          />
+        <JumpToPageOverlay jupToPage={jupToPage} jupPage={jupPage} setJupPage={setJupPage} setJupToPage={setJupToPage} setPage={setPage} />
 
-          <div className={[style["Filter"], filterPanel && style["display"]].join(" ")}>
-            <div className={style["InnerFrame"]}>
-              <div>
-                <h1>{t("windowsType.postSearch.filter", usrIndx)}</h1>
-                <h2>{t("windowsType.postSearch.filter.rating", usrIndx)}</h2>
-                <div className={style["btns"]}>
-                  {
-                    ([
-                      [searchFilter.rating?.s, "s"], [searchFilter.rating?.q, "q"],
-                      [searchFilter.rating?.e, "e"],
-                    ] as [boolean, ("s" | "q" | "e")][]).map(rat => {
-                      return <button
-                        key={rat[1]}
-                        className={[rat[0] && style["activ"]].join(" ")}
-                        onClick={() => {
-                          setSearchFilter(prev => ({
-                            ...prev,
-                            rating: {
-                              s: false, q: false, e: false,
-                              ...prev.rating,
-                              [rat[1]]: !prev.rating?.[rat[1]]
-                            }
-                          }))
-                        }}
-                      >{t("windowsType.postSearch.filter.rating." + rat[1] as any, usrIndx)}</button>
-                    })
-                  }
-                </div>
-                <br />
-                <h2>{t("windowsType.postSearch.filter.type", usrIndx)}</h2>
-                <div className={style["btns"]}>
-                  {
-                    ([[searchFilter.type?.vid, "vid"], [searchFilter.type?.gif, "gif"], [searchFilter.type?.pic, "pic"],
-                    ] as [boolean, ("vid" | "gif" | "pic")][]).map(tType => (
-                      <button
-                        key={tType[1]}
-                        className={[tType[0] && style["activ"]].join(" ")}
-                        onClick={() => {
-                          setSearchFilter(prev => ({
-                            ...prev,
-                            type: {
-                              vid: false, gif: false, pic: false,
-                              ...prev.type,
-                              [tType[1]]: !prev.type?.[tType[1]]
-                            }
-                          }))
-                        }}
-                      >{t("windowsType.postSearch.filter.type." + tType[1] as any, usrIndx)}</button>
-                    ))
-                  }
-                </div>
-                <h2>{t("windowsType.postSearch.filter.sortBy", usrIndx)}</h2>
-                <div className={style["btns"]}>
-                  {
-                    ([
-                      "newest", "score", "favs", "size"
-                    ] as ("newest" | "score" | "favs" | "size")[]).map(sort => {
-                      return <button
-                        key={sort}
-                        className={[sort === "newest" ? "" : sort === searchFilter.sortBy && style["activ"]].join(" ")}
-                        onClick={() => {
-                          setSearchFilter(prev => ({
-                            ...prev,
-                            sortBy: sort
-                          }))
-                        }}
-                      >{t("windowsType.postSearch.filter.sortBy." + sort as any, usrIndx)}</button>
-                    })
-                  }
-                </div>
-                <br />
-                <div className={style["btns"]}>
-                  <button
-                    className={[searchFilter.reverse && style["activ"]].join(" ")}
-                    onClick={() => {
-                      setSearchFilter(prev => ({
-                        ...prev,
-                        reverse: !prev.reverse
-                      }))
-                    }}
-                  >{t("windowsType.postSearch.filter.sortBy.reverse", usrIndx)}</button>
-                </div>
+        <div className={[style["Filter"], filterPanel && style["display"]].join(" ")}>
+          <div className={style["InnerFrame"]}>
+            <div>
+              <h1>{t("windowsType.postSearch.filter", usrIndx)}</h1>
+              <h2>{t("windowsType.postSearch.filter.rating", usrIndx)}</h2>
+              <div className={style["btns"]}>
+                {
+                  ([
+                    [searchFilter.rating?.s, "s"], [searchFilter.rating?.q, "q"],
+                    [searchFilter.rating?.e, "e"],
+                  ] as [boolean, ("s" | "q" | "e")][]).map(rat => {
+                    return <button
+                      key={rat[1]}
+                      className={[rat[0] && style["activ"]].join(" ")}
+                      onClick={() => {
+                        setSearchFilter(prev => ({
+                          ...prev,
+                          rating: {
+                            s: false, q: false, e: false,
+                            ...prev.rating,
+                            [rat[1]]: !prev.rating?.[rat[1]]
+                          }
+                        }))
+                      }}
+                    >{t("windowsType.postSearch.filter.rating." + rat[1] as any, usrIndx)}</button>
+                  })
+                }
+              </div>
+              <br />
+              <h2>{t("windowsType.postSearch.filter.type", usrIndx)}</h2>
+              <div className={style["btns"]}>
+                {
+                  ([[searchFilter.type?.vid, "vid"], [searchFilter.type?.gif, "gif"], [searchFilter.type?.pic, "pic"],
+                  ] as [boolean, ("vid" | "gif" | "pic")][]).map(tType => (
+                    <button
+                      key={tType[1]}
+                      className={[tType[0] && style["activ"]].join(" ")}
+                      onClick={() => {
+                        setSearchFilter(prev => ({
+                          ...prev,
+                          type: {
+                            vid: false, gif: false, pic: false,
+                            ...prev.type,
+                            [tType[1]]: !prev.type?.[tType[1]]
+                          }
+                        }))
+                      }}
+                    >{t("windowsType.postSearch.filter.type." + tType[1] as any, usrIndx)}</button>
+                  ))
+                }
+              </div>
+              <h2>{t("windowsType.postSearch.filter.sortBy", usrIndx)}</h2>
+              <div className={style["btns"]}>
+                {
+                  ([
+                    "newest", "score", "favs", "size"
+                  ] as ("newest" | "score" | "favs" | "size")[]).map(sort => {
+                    return <button
+                      key={sort}
+                      className={[sort === "newest" ? "" : sort === searchFilter.sortBy && style["activ"]].join(" ")}
+                      onClick={() => {
+                        setSearchFilter(prev => ({
+                          ...prev,
+                          sortBy: sort
+                        }))
+                      }}
+                    >{t("windowsType.postSearch.filter.sortBy." + sort as any, usrIndx)}</button>
+                  })
+                }
+              </div>
+              <br />
+              <div className={style["btns"]}>
+                <button
+                  className={[searchFilter.reverse && style["activ"]].join(" ")}
+                  onClick={() => {
+                    setSearchFilter(prev => ({
+                      ...prev,
+                      reverse: !prev.reverse
+                    }))
+                  }}
+                >{t("windowsType.postSearch.filter.sortBy.reverse", usrIndx)}</button>
               </div>
             </div>
           </div>
+        </div>
 
-          <div className={style["List"]}>
-            {showLoading && <NODATA.Fetching />}
-            {!showLoading &&
-              <div className={style["InnerFrame"]} ref={scrollPage}>
-
-                {processedPosts.map((post, indx) => <Components.Card
-                  actionMenu={actionMenu}
-                  key={post.id}
-                  post={post}
-                  delay={indx * .005}
-                  q={{ q: searchTags.join(" ") }}
-                  onClick={() => {
-                    const winID = `post-${id}`
-                    const children = <windowsType.post key={post.id} id={id} />;
-                    const customData: e621Type.window.post = {
-                      type: "post",
-                      data: {
-                        postId: post.id,
-                        cachedPost: post,
-                        parentData: {
-                          windowID,
-                          title: thisWindow?.title!,
-                          componentType: "postSearch",
-                          rect: thisWindow?.rect!,
-                          customData: {
-                            type: "postSearch",
-                            data: {
-                              nowPage: page,
-                              pageCache: postsCache,
-                              searchTags,
+        <div className={style["List"]}>
+          {fetchError ? (
+            <NODATA.Error error={fetchError} Reload={refreshSearch} />
+          ) : showLoading ? <NODATA.Fetching /> : (
+            mode === "pool" && !poolId ? <NODATA.None /> : (
+              processedPosts.length === 0 ? <NODATA.None /> : (
+                <div className={style["InnerFrame"]} ref={scrollPage} onKeyDown={e => { if (e.code === "Space") e.preventDefault(); }}>
+                  {processedPosts.map((post, indx) => (
+                    <Components.Card
+                      event={{
+                        mouseEnter(p) {
+                          setPeekPre(p)
+                        },
+                        mouseLeave() {
+                          setPeekPre(undefined)
+                        },
+                      }}
+                      actionMenu={actionMenu}
+                      key={post.id}
+                      post={post}
+                      delay={indx * .005}
+                      q={{ q: mode === "postSearch" ? searchTags.join(" ") : `pool:${poolId}` }}
+                      onClick={() => {
+                        const winID = `post-${id}`;
+                        const children = <windowsType.post key={post.id} id={id} />;
+                        const customData: e621Type.window.post = {
+                          type: "post",
+                          data: {
+                            postId: post.id, cachedPost: post,
+                            parentData: {
+                              windowID,
+                              title: thisWindow?.title!,
+                              componentType: mode,
+                              rect: thisWindow?.rect!,
+                              customData:
+                                mode === "postSearch" ? {
+                                  type: mode,
+                                  data: {
+                                    nowPage: page,
+                                    pageCache: postsCache,
+                                    searchTags,
+                                    searchFilter
+                                  }
+                                } :
+                                  {
+                                    type: mode,
+                                    data: {
+                                      poolId,
+                                      poolInfo,
+                                      nowPage: page,
+                                      pageCache: postsCache
+                                    }
+                                  } as any
                             }
                           }
                         }
-                      }
-                    }
-                    if (!wmRef.current?.hasWindowID(winID)) {
-                      wmRef.current?.createWindow({
-                        id: winID,
-                        children,
-                        customData,
-                      })
-                    } else {
-                      wmRef.current.updateWindow(winID, {
-                        children,
-                        customData,
-                      })
-                      wmRef.current.bringToFront(winID)
-                    }
-                  }}
-                />)}
-
-              </div>
-            }
-            {!showLoading && processedPosts.length === 0 && <NODATA.None />}
-          </div>
-
-        </WINDOW_FRAME>
-      </>
+                        if (!wmRef.current?.hasWindowID(winID)) {
+                          wmRef.current?.createWindow({ id: winID, children, customData })
+                        } else {
+                          wmRef.current.updateWindow(winID, { children, customData });
+                          wmRef.current.bringToFront(winID);
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )
+            )
+          )}
+        </div>
+      </WINDOW_FRAME>
     );
+  };
+
+}
+
+type ViewerWindowProps = {
+  winID: string,
+  post: E621.Post,
+  contro?: boolean
+}
+
+const ViewerWindow = ({ winID, post, contro }: ViewerWindowProps) => {
+  return <WINDOW_FRAME
+    menulist={[
+      windowAction(winID, [
+        [
+          "View Post",
+          () => {
+            createWindow(wmRef, {
+              type: "postGetByID",
+              data: {
+                status: "success",
+                currentId: post.id,
+                fetchedPost: post,
+              },
+            })
+          },
+          {
+            type: "post",
+            data: post,
+          }
+        ],
+      ]), [
+        t("menuButton.top.Other", usrIndx),
+        menuBtn.post(post.id, post, {}, "viewer"),
+      ]
+    ]}
+  >
+    <Viewer
+      className={style["Viewer"]}
+      contro={contro}
+      tTranslate={{
+        "resetTransform": t("windowsType.viewer.ResetTransform", usrIndx),
+        "randerMode": t("windowsType.viewer.RenderMode", usrIndx),
+        "randerMode.auto": t("windowsType.viewer.RenderMode.Auto", usrIndx),
+        "randerMode.pixelated": t("windowsType.viewer.RenderMode.Pixelated", usrIndx),
+      }}
+    >
+      <img src={post.file.url!} alt="" loading="lazy" />
+    </Viewer>
+  </WINDOW_FRAME >
+}
+
+
+type windowProp = { id: string }
+const windowsType = {
+  postSearch: function ({ id }: windowProp) {
+    return <searchWindow.UnifiedPostBrowser id={id} mode="postSearch" />;
   },
   post: function ({ id }: windowProp) {
     const windowID = `post-${id}`
@@ -3133,24 +3556,30 @@ const windowsType = {
       ? thisWindow.customData.data
       : undefined;
 
-    const [postId] = useState<number>(savedData?.postId ?? 0);
+    const [postId, setPostId] = useState<number>(savedData?.postId ?? 0);
     const [postData, setPostData] = useState<E621.Post | undefined>(savedData?.cachedPost);
     const [isLoading, setIsLoading] = useState<boolean>(!savedData?.cachedPost);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+
+    const [parentDataState, setParentDataState] = useState(savedData?.parentData);
 
     const fetchPost = useCallback(async () => {
       if (!postId) return;
       setIsLoading(true);
-      setPostData(undefined)
+      setPostData(undefined);
+      setFetchError(null);
       try {
         const result = await LABS_E621_API.posts.get({
           id: postId,
-          user: e621Info(workSpaceStatus, usrIndx)
+          user: e621Info(usrIndx)
         });
         if (result) {
           setPostData(result);
+          setFetchError(null);
         }
       } catch (e) {
         Kiasole.error(`Post ${postId} load failed: ${e}`);
+        setFetchError(String(e));
       } finally {
         setIsLoading(false);
       }
@@ -3158,9 +3587,183 @@ const windowsType = {
 
     useEffect(() => {
       if (!postData && postId !== 0) {
+        _app.throwNotic("已經沒東西了")
         fetchPost();
       }
     }, [postId]);
+
+    const handleKeyNavigation = useCallback(async (direction: 1 | -1) => {
+      if (!parentDataState || (parentDataState.componentType !== "postSearch" && parentDataState.componentType !== "pool")) return;
+
+      const pData = parentDataState.customData.data as any;
+      let currentCache = { ...pData.pageCache };
+      let currentPage = pData.nowPage;
+
+      let processed = tools.applyFiltersAndSort(currentCache[currentPage] || [], pData.searchFilter);
+      let currentIndex = processed.findIndex(p => p.id === postId);
+
+      if (currentIndex === -1) return;
+
+      let nextIndex = currentIndex + direction;
+
+      if (nextIndex >= 0 && nextIndex < processed.length) {
+        const nextPost = processed[nextIndex];
+        setPostId(nextPost.id);
+        setPostData(nextPost);
+      } else {
+        let targetPage = currentPage + direction;
+        if (targetPage < 1) {
+          _app.throwNotic("已經到頭了")
+          if (thisWindow?.customData?.type === "post") {
+            const { parentData } = thisWindow?.customData?.data
+            if (parentData) {
+              const { rect, windowID, customData, componentType } = parentData
+
+              let reconstructedChildren: ReactNode = null;
+
+              if (componentType === "postSearch") {
+                const parentId = windowID.replace("post_search-", "");
+                reconstructedChildren = <windowsType.postSearch id={parentId} />;
+              } else if (componentType === "pool") {
+                const parentId = windowID.replace("pool-", "");
+                reconstructedChildren = <windowsType.pool id={parentId} />;
+              }
+
+              if (wmRef.current?.getWindow(windowID)) {
+                wmRef.current.updateWindow(windowID, { customData });
+                wmRef.current.bringToFront(windowID)
+              } else {
+                wmRef.current?.createWindow({
+                  id: windowID,
+                  title: parentData.title,
+                  rect,
+                  children: reconstructedChildren,
+                  customData: customData
+                })
+              }
+            }
+          }
+          return
+        };
+
+        setIsLoading(true);
+        setPostData(undefined);
+
+        let foundPost: E621.Post | undefined = undefined;
+        let attempts = 0;
+
+        const searchTagsQuery = parentDataState.componentType === "postSearch"
+          ? pData.searchTags
+          : [`pool:${pData.poolId}`];
+
+        while (!foundPost && attempts < 3 && targetPage > 0) {
+          let targetPosts = currentCache[targetPage];
+
+          if (!targetPosts) {
+            try {
+              targetPosts = await LABS_E621_API.posts.search({
+                tags: searchTagsQuery,
+                page: targetPage,
+                limit: 75,
+                user: e621Info(usrIndx)
+              });
+              currentCache[targetPage] = targetPosts;
+            } catch (e) {
+              Kiasole.error(`第 ${targetPage} 頁抓取失敗: ${e}`);
+              break;
+            }
+          }
+
+          let targetProcessed = tools.applyFiltersAndSort(targetPosts, pData.searchFilter);
+
+          if (targetProcessed.length > 0) {
+            foundPost = direction === 1 ? targetProcessed[0] : targetProcessed[targetProcessed.length - 1];
+          } else {
+            targetPage += direction;
+            attempts++;
+          }
+        }
+
+        if (foundPost) {
+          setPostId(foundPost.id);
+          setPostData(foundPost);
+
+          setParentDataState((prev: any) => {
+            if (!prev || (prev.componentType !== "postSearch" && prev.componentType !== "pool")) return prev;
+            return {
+              ...prev,
+              customData: {
+                ...prev.customData,
+                data: {
+                  ...prev.customData.data,
+                  nowPage: targetPage,
+                  pageCache: currentCache
+                }
+              }
+            };
+          });
+        } else {
+          fetchPost();
+        }
+        setIsLoading(false);
+      }
+    }, [postId, parentDataState, fetchPost]);
+
+    useEffect(() => {
+      const handleSync = (e: Event) => {
+        const customEvent = e as CustomEvent;
+        const newParentData = customEvent.detail;
+        if (newParentData && JSON.stringify(parentDataState) !== JSON.stringify(newParentData)) {
+          setParentDataState(newParentData);
+        }
+      };
+      const eventName = `SYNC_PARENT_DATA_${thisWindow?.id}`;
+      window.addEventListener(eventName, handleSync);
+      return () => window.removeEventListener(eventName, handleSync);
+    }, [thisWindow?.id, parentDataState]);
+
+    useEffect(() => {
+      const wm = wmRef.current
+      if (!wm) return;
+      if (!parentDataState) return;
+      const { windowID, customData, componentType } = parentDataState
+      const win = wm.getWindow(windowID);
+      if (!win) return;
+      if (win.customData?.type !== "postSearch") return;
+
+      const currentParentData = win.customData?.data;
+
+      if (JSON.stringify(currentParentData) !== JSON.stringify(customData.data)) {
+
+        win.update({
+          customData,
+        });
+
+        window.dispatchEvent(new CustomEvent(`SYNC_PARENT_DATA_${windowID}`, {
+          detail: customData.data
+        }));
+      }
+
+    }, [parentDataState]);
+
+    useEffect(() => {
+      const keydown = (e: KeyboardEvent) => {
+        if (disableWindowKeyEvent) return;
+        const win = wmRef.current?.getWindow(thisWindow?.id!);
+        if (!win?.isFocused) return;
+
+        if (e.code === "ArrowLeft") {
+          e.preventDefault();
+          handleKeyNavigation(-1);
+        } else if (e.code === "ArrowRight") {
+          e.preventDefault();
+          handleKeyNavigation(1);
+        }
+      };
+
+      document.addEventListener("keydown", keydown);
+      return () => document.removeEventListener("keydown", keydown);
+    }, [handleKeyNavigation, thisWindow?.id]);
 
     useEffect(() => {
       thisWindow?.setData({
@@ -3168,14 +3771,14 @@ const windowsType = {
         data: {
           postId,
           cachedPost: postData,
-          parentData: savedData?.parentData
+          parentData: parentDataState
         }
       });
       if (postData)
         thisWindow?.setTitle(`${t("windowsType.post", usrIndx)} / ${postData.tags.artist.join(",")} - ${postData.id}`)
       else
         thisWindow?.setTitle(`${t("windowsType.post", usrIndx)} / ${postId}`)
-    }, [postData, postId]);
+    }, [postData, postId, parentDataState]);
 
     return (
       <>
@@ -3201,6 +3804,7 @@ const windowsType = {
                       }
 
                       if (wmRef.current?.getWindow(windowID)) {
+                        wmRef.current.updateWindow(windowID, { customData });
                         wmRef.current.bringToFront(windowID)
                       } else {
                         wmRef.current?.createWindow({
@@ -3227,9 +3831,9 @@ const windowsType = {
                 ],
               ],
             ],
-            ...postData ? [[
+            [
               t("menuButton.top.Other", usrIndx),
-              menuBtn.post(postData,
+              menuBtn.post(postId, postData,
                 thisWindow?.customData?.type === "post" ?
                   {
                     q: (() => {
@@ -3244,13 +3848,16 @@ const windowsType = {
                     })()
                   }
                   : {}),
-            ] as MenuButtonType] : [],
+            ]
           ]}
         >
-          {postData &&
-            <Components.Post postData={postData} thisWindow={thisWindow} />
+          {(postData && !isLoading) &&
+            <Components.Post key={postData.id} postData={postData} thisWindow={thisWindow} />
           }
-          {!postData && <NODATA.Fetching />}
+          {isLoading && <NODATA.Fetching />}
+          {!isLoading && !postData && fetchError && (
+            <NODATA.Error error={fetchError} Reload={fetchPost} />
+          )}
         </WINDOW_FRAME >
       </>
     );
@@ -3266,6 +3873,7 @@ const windowsType = {
     const [inputId, setInputId] = useState<string | number>(savedData?.currentId ?? "");
     const [fetchedPost, setFetchedPost] = useState<E621.Post | null | undefined>(savedData?.fetchedPost);
     const [status, setStatus] = useState<"idle" | "loading" | "error" | "success">(savedData?.status ?? "idle");
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     const handleSearch = async (nextId: string | number) => {
       const targetId = Number(nextId);
@@ -3279,21 +3887,25 @@ const windowsType = {
       if (targetWindowID !== windowID && wmRef.current?.hasWindowID(targetWindowID)) {
         Kiasole.log(`Window ${targetWindowID} already exists. Focusing...`);
         wmRef.current.bringToFront(targetWindowID);
+        if (fetchedPost)
+          setInputId(fetchedPost.id)
         return;
       }
 
       setStatus("loading");
       setFetchedPost(undefined);
+      setFetchError(null);
 
       try {
         const result = await LABS_E621_API.posts.get({
           id: targetId,
-          user: e621Info(workSpaceStatus, usrIndx)
+          user: e621Info(usrIndx)
         });
 
         if (result) {
           setFetchedPost(result);
           setStatus("success");
+          setFetchError(null);
           if (targetWindowID !== windowID) {
             thisWindow?.setData({
               type: "postGetByID",
@@ -3319,6 +3931,7 @@ const windowsType = {
         }
       } catch (e) {
         console.error(e);
+        setFetchError(String(e));
         setStatus("error");
       }
     };
@@ -3336,7 +3949,7 @@ const windowsType = {
     }, [inputId, fetchedPost, status]);
 
     useEffect(() => {
-      if (status === "loading" && !fetchedPost) {
+      if (status === "loading") {
         handleSearch(inputId);
       }
     }, []);
@@ -3356,10 +3969,10 @@ const windowsType = {
               ],
             ],
           ],
-          ...fetchedPost ? [[
+          [
             t("menuButton.top.Other", usrIndx),
-            menuBtn.post(fetchedPost, {}, "id"),
-          ] as MenuButtonType] : [],
+            menuBtn.post(inputId, fetchedPost, {}, "id"),
+          ]
         ]}
       >
         <div className={style["postGetByID"]}>
@@ -3379,584 +3992,16 @@ const windowsType = {
           {fetchedPost &&
             <Components.Post key={fetchedPost.id} postData={fetchedPost} thisWindow={thisWindow} />
           }
-          {!fetchedPost && <NODATA.Fetching />}
+          {!fetchedPost && status !== "error" && <NODATA.Fetching />}
+          {status === "error" && fetchError && (
+            <NODATA.Error error={fetchError} Reload={() => handleSearch(inputId)} />
+          )}
         </div>
       </WINDOW_FRAME >
     );
   },
   pool: function ({ id }: windowProp) {
-    const windowID = `pool-${id}`;
-    const thisWindow = wmRef.current?.getWindow(windowID);
-
-    const savedData = thisWindow?.customData?.type === "pool"
-      ? thisWindow.customData.data
-      : undefined;
-
-    const [poolIdInput, setPoolIdInput] = useState<string | number>(savedData?.poolId || id || "");
-    const [poolId, setPoolId] = useState<number>(savedData?.poolId || Number(id) || 0);
-    const [poolInfo, setPoolInfo] = useState<E621.Pool | undefined>(savedData?.poolInfo);
-
-    const [page, setPage] = useState<number>(savedData?.nowPage ?? 1);
-    const [postsCache, setPostsCache] = useState<PostsCache>(savedData?.pageCache ?? {});
-    const [jupToPage, setJupToPage] = useState<boolean>(false);
-    const [jupPage, setJupPage] = useState<number>(1);
-
-    const [isFocuOnIt, setFocuOnIt] = useState<boolean>(false);
-
-    const currentPosts = useMemo(() => postsCache[page] || [], [postsCache, page]);
-
-    const fetchingPages = useRef<Set<number>>(new Set());
-    const scrollPage = useRef<HTMLDivElement>(null);
-
-    const fetchPageData = useCallback(async (targetPage: number) => {
-      if (postsCache[targetPage] || fetchingPages.current.has(targetPage) || !poolId) {
-        return;
-      }
-
-      fetchingPages.current.add(targetPage);
-
-      try {
-        Kiasole.log(`[背景預取] 正在請求 API: Pool ${poolId} 第 ${targetPage} 頁`);
-        const newPosts = await LABS_E621_API.posts.search({
-          tags: [`pool:${poolId}`],
-          page: targetPage,
-          limit: 75,
-          user: e621Info(workSpaceStatus, usrIndx)
-        });
-
-        setPostsCache((prev) => ({
-          ...prev,
-          [targetPage]: newPosts
-        }));
-      } catch (err) {
-        Kiasole.error(`Pool page ${targetPage} fetch failed: ${err}`);
-      } finally {
-        fetchingPages.current.delete(targetPage);
-      }
-    }, [poolId, postsCache]);
-
-    useEffect(() => {
-      const savedCache = thisWindow?.customData?.type === "pool"
-        ? thisWindow.customData.data?.pageCache
-        : null;
-
-      if (savedCache && Object.keys(savedCache).length > 0) {
-        setPostsCache(savedCache);
-      }
-    }, []);
-
-    useEffect(() => {
-      if (thisWindow?.customData?.type === "pool") {
-        thisWindow?.setData({
-          type: "pool",
-          data: {
-            poolId,
-            poolInfo,
-            nowPage: page,
-            pageCache: postsCache,
-          }
-        });
-      }
-    }, [page, postsCache, poolId, poolInfo]);
-
-    useEffect(() => {
-      if (poolInfo) {
-        thisWindow?.setTitle(`${t("windowsType.pool", usrIndx)} : ${poolInfo.name.replace(/_/g, " ")} [Page ${page}]`);
-      } else if (poolId) {
-        thisWindow?.setTitle(`${t("windowsType.pool", usrIndx)} : ${poolId} [Page ${page}]`);
-      } else {
-        thisWindow?.setTitle(`${t("windowsType.pool", usrIndx)}`);
-      }
-    }, [poolInfo, poolId, page]);
-
-    useEffect(() => {
-      if (poolId !== 0 && (!poolInfo || poolInfo.id !== poolId)) {
-        LABS_E621_API.pools.get({ id: poolId }).then(info => {
-          if (info) setPoolInfo(info as any);
-        }).catch(err => Kiasole.error(`Pool Info Fetch Error: ${err}`));
-      }
-    }, [poolId]);
-
-    useEffect(() => {
-      if (!poolId) return;
-      const loadData = async () => {
-        const targetPages = [page, page + 1, page - 1, page + 2, page - 2]
-          .filter(p => p > 0);
-
-        for (const p of targetPages) {
-          await fetchPageData(p);
-          await functions.timeSleep(500);
-        }
-      };
-
-      loadData();
-    }, [page, poolId]);
-
-    useEffect(() => {
-      const { current: scpg } = scrollPage;
-      if (scpg) {
-        scpg.scrollTo({ top: 0 });
-      }
-    }, [page]);
-
-    const refreshSearch = useCallback((newId?: string | number) => {
-      setPostsCache({});
-      setPage(1);
-
-      if (newId !== undefined) {
-        const parsedId = Number(newId) || 0;
-        setPoolId(parsedId);
-        if (parsedId !== poolId) {
-          setPoolInfo(undefined);
-        }
-      }
-    }, [poolId]);
-
-    const handleNextPage = () => setPage(p => p + 1);
-    const handlePrevPage = () => setPage(p => Math.max(1, p - 1));
-
-    useEffect(() => {
-      const keydown = (e: KeyboardEvent) => {
-        if (!wmRef.current?.getWindow(thisWindow!.id)?.isFocused) return;
-
-        switch (e.code) {
-          case "Escape": {
-            setJupToPage(false)
-            break
-          }
-        }
-
-        if (jupToPage || isFocuOnIt) return;
-
-        switch (e.code) {
-          case "ArrowLeft": {
-            e.preventDefault()
-            setPage(e => e > 1 ? e - 1 : 1)
-            break
-          }
-          case "ArrowRight": {
-            e.preventDefault()
-            setPage(e => e + 1)
-            break
-          }
-        }
-      }
-      document.addEventListener("keydown", keydown)
-
-      return () => {
-        document.removeEventListener("keydown", keydown)
-      }
-
-    }, [jupToPage, isFocuOnIt])
-
-    const actionMenu = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>, post: E621.Post) => {
-      event.stopPropagation()
-      event.preventDefault()
-      const btn = event.currentTarget
-      const btnRect = btn.getBoundingClientRect()
-      const x = btnRect.bottom
-      const y = btnRect.left
-      MenuAction.showMenu(menuBtn.post(post, { q: `pool:${poolId}` }), [x, y])
-    }
-
-    const showLoading = poolId !== 0 && !postsCache[page];
-
-    useEffect(() => {
-      const statusOffset = 50
-      const offset = 200
-
-      let startPointX = 0
-      let startPointY = 0
-
-      let status: "NONE" | "X" | "Y" = "NONE"
-
-      let x = 0
-      let y = 0
-
-      const touchArea = scrollPage.current
-
-      if (jupToPage) return;
-
-      const onTouchStart = (e: TouchEvent) => {
-        if (!touchArea) return;
-
-        startPointX = e.touches[0].clientX
-        startPointY = e.touches[0].clientY
-      }
-
-      const onTouchMove = (e: TouchEvent) => {
-        if (!touchArea) return;
-
-        x = startPointX - e.touches[0].clientX
-        y = startPointY - e.touches[0].clientY
-
-        if (status === "X") e.preventDefault();
-
-        if (status === "Y") { x = 0; return; }
-
-        const transform = () => {
-          touchArea.style.transform = `translateX(${-1 * (x / 10)}px)`
-        }
-
-        if (x > offset) {
-          touchArea.style.opacity = ".5"
-          transform()
-        } else if (x < -offset) {
-          if (page === 1) return;
-          touchArea.style.opacity = ".5"
-          transform()
-        } else {
-          touchArea.style.opacity = ""
-          transform()
-        }
-
-        if (status !== "NONE") return;
-        if (x > statusOffset || x < -statusOffset) status = "X";
-        if (y > statusOffset || y < -statusOffset) status = "Y";
-      }
-
-      const onTouchEnd = () => {
-        if (!touchArea) return;
-
-        startPointX = 0;
-
-        if (x > offset) {
-          setPage(e => e + 1)
-          void touchArea.clientHeight
-        } else if (x < -offset) {
-          setPage(e => e > 1 ? e - 1 : 1)
-          void touchArea.clientHeight
-        }
-        touchArea.style.transform = ""
-        touchArea.style.opacity = ""
-
-        status = "NONE"
-      }
-
-      touchArea?.addEventListener("touchstart", onTouchStart)
-      touchArea?.addEventListener("touchmove", onTouchMove)
-      touchArea?.addEventListener("touchend", onTouchEnd)
-
-      return () => {
-        touchArea?.removeEventListener("touchstart", onTouchStart)
-        touchArea?.removeEventListener("touchmove", onTouchMove)
-        touchArea?.removeEventListener("touchend", onTouchEnd)
-      }
-
-    }, [jupToPage, page, scrollPage.current])
-
-    const Layer = {
-      PaginationControls: <div className={style["PaginationControls"]} >
-        <div />
-        <div className={style["InnerFrame"]}>
-          <button kiase-style="" onClick={handlePrevPage} disabled={page === 1}>{"<"}</button>
-          <button kiase-style="" onClick={() => { setJupToPage(true); setJupPage(page) }} >Page {page}</button>
-          <button kiase-style="" onClick={handleNextPage}>{">"}</button>
-        </div>
-      </div>,
-
-      TagEditor: <div className={style["TagEditor"]} >
-        <div className={style["InnerFrame"]}>
-          <input
-            type="text"
-            value={poolIdInput}
-            onInput={(e) => setPoolIdInput(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.code === "NumpadEnter") {
-                const targetId = Number(poolIdInput);
-                if (targetId && targetId !== poolId) {
-                  refreshSearch(targetId);
-                }
-              }
-            }}
-            onFocus={() => { setFocuOnIt(true) }}
-            onBlur={() => { setFocuOnIt(false) }}
-            placeholder="Input Pool ID..."
-          />
-        </div>
-        <div />
-      </div>,
-    }
-
-    const JumpToPageOverlay = useMemo(() => {
-      const _ = ({
-        jupToPage,
-        jupPage,
-        setJupPage,
-        setJupToPage,
-        setPage
-      }: {
-        jupToPage: boolean,
-        jupPage: number,
-        setJupPage: (p: number) => void,
-        setJupToPage: (b: boolean) => void,
-        setPage: (p: number | ((prev: number) => number)) => void
-      }) => {
-        const touchAreaRef = useRef<HTMLDivElement>(null);
-        const backButtonRef = useRef<HTMLButtonElement>(null);
-        const backLineRef = useRef<HTMLDivElement>(null);
-        const applyButtonRef = useRef<HTMLButtonElement>(null);
-        const applyLineRef = useRef<HTMLDivElement>(null);
-        const inputRef = useRef<HTMLInputElement>(null);
-
-        useEffect(() => {
-          const offset = 200
-
-          let startPointX = 0
-          let x = 0
-
-          const touchArea = touchAreaRef.current
-          const backButton = backButtonRef.current
-          const backLine = backLineRef.current
-          const applyButton = applyButtonRef.current
-          const applyLine = applyLineRef.current
-
-          const isLoad = touchArea && backButton && backLine && applyButton && applyLine
-
-          if (!isLoad) return;
-          if (!jupToPage) return;
-
-          const onTouchStart = (e: TouchEvent) => {
-            startPointX = e.touches[0].clientX
-          }
-
-          const onTouchMove = (e: TouchEvent) => {
-            x = startPointX - e.touches[0].clientX
-
-            const _x = x / 7
-
-            if (x > 0) {
-              applyButton.style.transform = ""
-              applyLine.style.transform = ""
-
-              backButton.style.transform = `translateX(-${_x}px)`
-              backLine.style.transform = `translateX(-${_x}px)`
-            } else {
-              backButton.style.transform = ""
-              backLine.style.transform = ""
-
-              applyButton.style.transform = `translateX(${Math.abs(_x)}px)`
-              applyLine.style.transform = `translateX(${_x}px)`
-            }
-
-            if (x > offset) {
-              applyButton.style.opacity = ""
-              applyLine.style.opacity = ""
-              backButton.style.opacity = ".5"
-              backLine.style.opacity = ".5"
-            } else if (x < -offset) {
-              backButton.style.opacity = ""
-              backLine.style.opacity = ""
-              applyButton.style.opacity = ".5"
-              applyLine.style.opacity = ".5"
-            } else {
-              backButton.style.opacity = ""
-              backLine.style.opacity = ""
-              applyButton.style.opacity = ""
-              applyLine.style.opacity = ""
-            }
-
-          }
-
-          const onTouchEnd = (e: TouchEvent) => {
-            startPointX = 0
-
-            if (x > offset) {
-              setJupToPage(false)
-              backButton.click()
-            } else if (x < -offset) {
-              setJupToPage(false)
-              applyButton.click()
-            }
-
-            backButton.style.transform = ""
-            backLine.style.transform = ""
-            applyButton.style.transform = ""
-            applyLine.style.transform = ""
-            backButton.style.opacity = ""
-            backLine.style.opacity = ""
-            applyButton.style.opacity = ""
-            applyLine.style.opacity = ""
-          }
-
-          touchArea.addEventListener("touchstart", onTouchStart)
-          touchArea.addEventListener("touchmove", onTouchMove)
-          touchArea.addEventListener("touchend", onTouchEnd)
-
-          return () => {
-            touchArea.removeEventListener("touchstart", onTouchStart)
-            touchArea.removeEventListener("touchmove", onTouchMove)
-            touchArea.removeEventListener("touchend", onTouchEnd)
-          }
-
-        }, [jupToPage, jupPage, setJupToPage, setPage]);
-
-        useEffect(() => {
-          const input = inputRef.current
-          if (!input) return;
-          if (jupToPage) input.focus();
-          else input.blur()
-        }, [jupToPage]);
-
-        return (
-          <div ref={touchAreaRef} className={[style["JumpToPage"], jupToPage && style["show"]].join(" ")}>
-            <div className={style["Inner"]}>
-              <div className={style["Back"]}>
-                <button ref={backButtonRef} onClick={() => setJupToPage(false)}>{"<-- Cancel"}</button>
-              </div>
-              <div className={[style["line"], style["top"]].join(" ")}><div ref={backLineRef} /></div>
-              <div className={style["Input"]}>
-                Jump To Page
-                <input
-                  ref={inputRef}
-                  type="number"
-                  value={jupPage}
-                  onChange={(e) => setJupPage(+e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      setPage(~~(jupPage || 1));
-                      setJupToPage(false);
-                    }
-                  }}
-                />
-              </div>
-              <div className={[style["line"], style["bottom"]].join(" ")}><div ref={applyLineRef} /></div>
-              <div className={style["Apply"]}>
-                <button ref={applyButtonRef} onClick={() => {
-                  setPage(~~(jupPage || 1));
-                  setJupToPage(false);
-                }}>{"Apply -->"}</button>
-              </div>
-            </div>
-          </div>
-        );
-      };
-
-      return _
-    }, [])
-
-    return (
-      <>
-        <WINDOW_FRAME
-          className={style["pool"]}
-          menulist={[
-            windowAction(windowID),
-            [
-              t("menuButton.top.Data", usrIndx),
-              [
-                [
-                  t("menuButton.Reload", usrIndx),
-                  () => refreshSearch(poolId)
-                ],
-              ],
-            ],
-            [
-              t("menuButton.top.Other", usrIndx),
-              [
-                [
-                  t("menuButton.SaveToTmp", usrIndx),
-                  () => {
-                    someActions.saveToTmp(usrIndx, cloneDeep(wmRef.current!.getWindow(thisWindow!.id!)!.customData!), thisWindow!.title, windowID)
-                  },
-                  thisWindow?.customData?.type === "pool" ? {
-                    type: "pool",
-                    thisWindow,
-                    data: thisWindow.customData.data
-                  } : undefined
-                ],
-                ...menuBtn.copyJSON(poolInfo),
-              ],
-            ],
-          ]}
-
-          onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
-          onDrop={e => {
-            if (!e.dataTransfer) return;
-
-            const itemdata = e.dataTransfer.getData(e621Type.DragItemType.appname)
-
-            if (itemdata) {
-              const item: e621Type.DragItemType.defaul = JSON.parse(itemdata)
-              const { data, type } = item
-              if (type === "poolId") {
-                setPoolIdInput(data);
-                refreshSearch(data);
-                StopEvent(e);
-              } else if (type === "pool") {
-                setPoolIdInput(data.poolId);
-                refreshSearch(data.poolId);
-                StopEvent(e);
-              }
-            }
-          }}
-        >
-          {Layer.PaginationControls}
-          {Layer.TagEditor}
-
-          <JumpToPageOverlay
-            jupToPage={jupToPage}
-            jupPage={jupPage}
-            setJupPage={setJupPage}
-            setJupToPage={setJupToPage}
-            setPage={setPage}
-          />
-
-          <div className={style["List"]}>
-            {!poolId ? (
-              <NODATA.None />
-            ) : showLoading ? (
-              <NODATA.Fetching />
-            ) : currentPosts.length === 0 ? (
-              <NODATA.None />
-            ) : (
-              <div className={style["InnerFrame"]} ref={scrollPage}>
-                {currentPosts.map((post, indx) => <Components.Card
-                  actionMenu={actionMenu}
-                  key={post.id}
-                  post={post}
-                  delay={indx * .005}
-                  q={{ q: `pool:${poolId}` }}
-                  onClick={() => {
-                    const winID = `post-${post.id}`
-                    const title = `Post / ${post.tags.artist.join(",")} - ${post.id}`;
-                    const children = <windowsType.post key={post.id} id={`${post.id}`} />;
-                    const customData: e621Type.window.post = {
-                      type: "post",
-                      data: {
-                        postId: post.id,
-                        cachedPost: post,
-                        parentData: {
-                          windowID,
-                          title: thisWindow?.title!,
-                          componentType: "pool",
-                          rect: thisWindow?.rect!,
-                          customData: {
-                            type: "pool",
-                            data: {
-                              poolId,
-                              poolInfo,
-                              nowPage: page,
-                              pageCache: postsCache,
-                            }
-                          }
-                        }
-                      }
-                    }
-                    if (!wmRef.current?.hasWindowID(winID)) {
-                      wmRef.current?.createWindow({ id: winID, title, children, customData })
-                    } else {
-                      wmRef.current.updateWindow(winID, { title, children, customData })
-                      wmRef.current.bringToFront(winID)
-                    }
-                  }}
-                />)}
-              </div>
-            )}
-          </div>
-
-        </WINDOW_FRAME>
-      </>
-    );
+    return <searchWindow.UnifiedPostBrowser id={id} mode="pool" />;
   },
   viewer: function ({ id }: windowProp) {
     const windowID = `viewer-${id}`;
@@ -3972,47 +4017,48 @@ const windowsType = {
       thisWindow?.setTitle(`${t("windowsType.viewer", usrIndx)} [ ${fetchedPost.id} ]`)
     }, [])
 
-    return (
-      <WINDOW_FRAME
-        menulist={[
-          windowAction(windowID, [
-            [
-              "View Post",
-              () => {
-                createWindow(wmRef, {
-                  type: "postGetByID",
-                  data: {
-                    status: "success",
-                    currentId: fetchedPost.id,
-                    fetchedPost,
-                  },
-                })
-              },
-              {
-                type: "post",
-                data: fetchedPost,
-              }
-            ],
-          ]),
-          ...fetchedPost ? [[
-            t("menuButton.top.Other", usrIndx),
-            menuBtn.post(fetchedPost, {}, "viewer"),
-          ] as MenuButtonType] : [],
-        ]}
-      >
-        <Viewer
-          className={style["Viewer"]}
-          tTranslate={{
-            "resetTransform": t("windowsType.viewer.ResetTransform", usrIndx),
-            "randerMode": t("windowsType.viewer.RanderMode", usrIndx),
-            "randerMode.auto": t("windowsType.viewer.RanderMode.Auto", usrIndx),
-            "randerMode.pixelated": t("windowsType.viewer.RanderMode.Pixelated", usrIndx),
-          }}
-        >
-          <img src={fetchedPost.file.url!} alt="" />
-        </Viewer>
-      </WINDOW_FRAME >
-    );
+    return (<ViewerWindow post={fetchedPost} winID={windowID} />);
+  },
+  peekPreview: function () {
+    const windowID = `peek-preview`;
+    const thisWindow = wmRef.current?.getWindow(windowID);
+
+    const savedData = thisWindow?.customData?.type === "preview"
+      ? thisWindow.customData.data
+      : undefined;
+
+    const [fetchedPost] = useState<E621.Post>(savedData!);
+
+    useEffect(() => {
+      thisWindow?.setTitle(`${t("windowsType.preview", usrIndx)} [ ${fetchedPost.id} ]`)
+    }, [])
+
+    useEffect(() => {
+      const keydown = (e: KeyboardEvent) => {
+        if (disableWindowKeyEvent) return;
+        if (!thisWindow?.focus) return;
+
+        if (e.code === "Escape") thisWindow.close();
+      }
+
+      const keyup = (e: KeyboardEvent) => {
+        if (!thisWindow?.focus) return;
+
+        if (e.code === "Space") thisWindow.close();
+      }
+
+      document.addEventListener("keydown", keydown)
+      document.addEventListener("keyup", keyup)
+      thisWindow?.addEventListener("blur", () => thisWindow.close())
+
+      return () => {
+        document.removeEventListener("keydown", keydown)
+        document.removeEventListener("keyup", keyup)
+      }
+    }, [])
+
+    return (<ViewerWindow post={fetchedPost} winID="peek-preview" contro={false} />);
+
   },
   setting: function () {
     const windowID = `app-setting`;
@@ -4089,10 +4135,50 @@ const windowsType = {
       useEffect(() => {
         let animationId: NodeJS.Timeout
         let keyispress = false
+        let pressTime: number = 0
+
+        const changePage = (offset: number) => {
+          setNowPage(e => {
+            const _ = cloneDeep(e)
+            if (_ === "NONE") return _;
+
+            const list = settingTabs.categorieList;
+
+            let nowtar = list.indexOf(_.categorie);
+            let count = list.length;
+
+            nowtar += offset; nowtar = (nowtar % count + count) % count;
+
+            _.categorie = list[nowtar];
+            _.pages = settingTabs.pageList[_.categorie][0] as any
+
+            return _
+          })
+        }
+
+        const changeTab = (offset: number) => {
+          setNowPage(e => {
+            const _ = cloneDeep(e)
+            if (_ === "NONE") return _;
+
+            const list = settingTabs.pageList[_.categorie];
+
+            let nowtar = list.indexOf(_.pages);
+            let count = list.length;
+
+            nowtar += offset; nowtar = (nowtar % count + count) % count;
+
+            _.pages = list[nowtar] as any;
+
+            return _
+          })
+        }
 
         const isFocus = () => !wmRef.current?.getWindow(thisWindow.id)?.isFocused;
 
         const keydown = (e: KeyboardEvent) => {
+          if (disableWindowKeyEvent) return;
+          if (!wmRef.current?.getWindow(thisWindow.id)?.isFocused) return;
           setShowTabs(e.shiftKey && e.ctrlKey)
           if (isFocus()) return;
           if (keyispress) return;
@@ -4100,60 +4186,25 @@ const windowsType = {
           if (e.shiftKey) {
             if (e.ctrlKey) {
 
-              const changePage = (offset: number) => {
-                e.preventDefault();
-                setNowPage(e => {
-                  const _ = cloneDeep(e)
-                  if (_ === "NONE") return _;
-
-                  const list = settingTabs.categorieList;
-
-                  let nowtar = list.indexOf(_.categorie);
-                  let count = list.length;
-
-                  nowtar += offset; nowtar = (nowtar % count + count) % count;
-
-                  _.categorie = list[nowtar];
-                  _.pages = settingTabs.pageList[_.categorie][0] as any
-
-                  return _
-                })
-              }
-
-              const changeTab = (offset: number) => {
-                e.preventDefault();
-                setNowPage(e => {
-                  const _ = cloneDeep(e)
-                  if (_ === "NONE") return _;
-
-                  const list = settingTabs.pageList[_.categorie];
-
-                  let nowtar = list.indexOf(_.pages);
-                  let count = list.length;
-
-                  nowtar += offset; nowtar = (nowtar % count + count) % count;
-
-                  _.pages = list[nowtar] as any;
-
-                  return _
-                })
-              }
-
               switch (e.code) {
                 case "ArrowLeft": {
                   changePage(-1)
+                  e.preventDefault();
                   break;
                 }
                 case "ArrowRight": {
                   changePage(1)
+                  e.preventDefault();
                   break;
                 }
                 case "ArrowUp": {
                   changeTab(-1)
+                  e.preventDefault();
                   break;
                 }
                 case "ArrowDown": {
                   changeTab(1)
+                  e.preventDefault();
                   break;
                 }
               }
@@ -4179,6 +4230,7 @@ const windowsType = {
         }
 
         const keyup = (e: KeyboardEvent) => {
+          if (!wmRef.current?.getWindow(thisWindow.id)?.isFocused) return;
           setShowTabs(e.shiftKey && e.ctrlKey)
           if (isFocus()) return;
           keyispress = false
@@ -4190,12 +4242,34 @@ const windowsType = {
           }
         }
 
+        const onwheel = (e: WheelEvent) => {
+          if (disableWindowKeyEvent) return;
+          if (!wmRef.current?.getWindow(thisWindow.id)?.isFocused) return;
+          if (!e.ctrlKey) return;
+          e.preventDefault();
+          if (e.shiftKey) {
+            if (e.deltaY > 0) {
+              changePage(1)
+            } else if (e.deltaY < 0) {
+              changePage(-1)
+            }
+          } else {
+            if (e.deltaY > 0) {
+              changeTab(1)
+            } else if (e.deltaY < 0) {
+              changeTab(-1)
+            }
+          };
+        }
+
         document.addEventListener("keydown", keydown)
         document.addEventListener("keyup", keyup)
+        document.addEventListener("wheel", onwheel, { passive: false })
 
         return () => {
           document.removeEventListener("keydown", keydown)
           document.removeEventListener("keyup", keyup)
+          document.removeEventListener("wheel", onwheel)
         }
 
       }, [])
@@ -4220,6 +4294,7 @@ const windowsType = {
             style={{
               transitionDelay: `${i * .05 + .05}s`
             }}
+            key={i}
           >
             <button
               className={[nowPage.pages === e && style["activ"]].join(" ")}
@@ -4232,6 +4307,31 @@ const windowsType = {
         )}
       </div>
     }, []);
+
+    const PasswordInput = useCallback((props: React.InputHTMLAttributes<HTMLInputElement>) => {
+      const [view, setView] = useState(false)
+      const v = (e: any, state: boolean) => { e.preventDefault(); setView(state) }
+      return (
+        <div className={style["PasswordInput"]}>
+          <input
+            {...props}
+            kiase-sty=""
+            type={view ? "text" : "password"}
+          />
+          <button
+            kiase-sty=""
+            non-pad=""
+            svg-icon=""
+            onMouseDown={e => v(e, true)}
+            onMouseUp={e => v(e, false)}
+            onTouchStart={e => v(e, true)}
+            onTouchEnd={e => v(e, false)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#274483"><path d="M599-361q49-49 49-119t-49-119q-49-49-119-49t-119 49q-49 49-49 119t49 119q49 49 119 49t119-49Zm-187-51q-28-28-28-68t28-68q28-28 68-28t68 28q28 28 28 68t-28 68q-28 28-68 28t-68-28ZM220-270.5Q103-349 48-480q55-131 172-209.5T480-768q143 0 260 78.5T912-480q-55 131-172 209.5T480-192q-143 0-260-78.5ZM480-480Zm207 158q95-58 146-158-51-100-146-158t-207-58q-112 0-207 58T127-480q51 100 146 158t207 58q112 0 207-58Z" /></svg>
+          </button>
+        </div>
+      )
+    }, [])
 
     const Pages = useCallback(({ nowPage }: PageBtn) => {
       if (nowPage === "NONE") return "none :p"
@@ -4262,13 +4362,19 @@ const windowsType = {
             switch (nowPage.pages) {
               case "local": {
 
-                const [accMsg, setAccMsg] = useState<string>("")
+                const [nameMsg, setNameMsg] = useState<string>("")
+                const [passMsg, setPassMsg] = useState<string>("")
 
                 const [currentPass, setCurrentPass] = useState<string>("")
                 const [newPass, setNewPass] = useState<string>("")
                 const [newPassAgain, setNewPassAgain] = useState<string>("")
 
-                const nowPass = workSpaceStatus.userList[usrIndx].saveInfo.user.passKey
+                const [nowUserName, setnowUserName] = useState<string>(USER(usrIndx).saveInfo.user.name)
+                const [currentName, setCurrentName] = useState<string>(nowUserName)
+
+                const nowPass = USER(usrIndx).saveInfo.user.passKey
+
+                useEffect(() => { setnowUserName(USER(usrIndx).saveInfo.user.name) }, [USER(usrIndx).saveInfo.user.name])
 
                 const setPass = useCallback((pass?: string) => {
                   setWorkSpaceStatus(e => {
@@ -4285,12 +4391,11 @@ const windowsType = {
                 }, [])
 
                 const setPassKey = useCallback((del?: boolean) => {
-
                   if (nowPass) {
-                    if (nowPass !== currentPass) { setAccMsg(t("setting.Account.local.changePassword.notic.noMatch", usrIndx)); return; };
+                    if (nowPass !== currentPass) { setPassMsg(t("setting.Account.local.changePassword.notic.noMatch", usrIndx)); return; };
                     if (del) {
-                      setAccMsg("")
-                      newInput.message("你確定你要把密碼解掉？", [
+                      setPassMsg("")
+                      newInput.message(t("setting.Account.local.changePassword.pop.areYouSure", usrIndx), [
                         { name: t("setting.Account.local.changePassword.pop.yes", usrIndx), value: "yes", key: "Delete" },
                         { name: t("setting.Account.local.changePassword.pop.no", usrIndx), value: "" },
                       ], (e) => {
@@ -4303,8 +4408,8 @@ const windowsType = {
                         }
                       })
                     } else {
-                      if (newPass !== newPassAgain) { setAccMsg(t("setting.Account.local.changePassword.notic.newNoMatch", usrIndx)); return; }
-                      setAccMsg("")
+                      if (newPass !== newPassAgain) { setPassMsg(t("setting.Account.local.changePassword.notic.newNoMatch", usrIndx)); return; }
+                      setPassMsg("")
                       setPass(newPass)
                       newInput.message(t("setting.Account.local.changePassword.pop.hasChange", usrIndx))
                       clearInput()
@@ -4318,65 +4423,108 @@ const windowsType = {
                   currentPass,
                   newPass,
                   newPassAgain,
-                  workSpaceStatus.userList[usrIndx].saveInfo.user.passKey
+                  USER(usrIndx).saveInfo.user.passKey
                 ])
 
+                const setUserName = useCallback((restore?: boolean) => {
+                  if (restore) {
+                    setCurrentName(nowUserName)
+                    return;
+                  }
+
+                  if (currentName) {
+                    setNameMsg("")
+                    newInput.message(t("setting.Account.local.changeUserName.confirm", usrIndx).replace("$1", currentName), [
+                      { name: t("setting.Account.local.changeUserName.nice", usrIndx), value: "yes", key: "Enter" },
+                      { name: t("setting.Account.local.changeUserName.no", usrIndx), value: "no", key: "Escape" },
+                    ], (e) => {
+                      if (e === "yes") {
+                        setWorkSpaceStatus(e => {
+                          const _ = cloneDeep(e)
+
+                          _.userList[usrIndx].saveInfo.user.name = currentName
+
+                          return _
+                        })
+                      }
+                    })
+                  } else {
+                    setNameMsg(t("setting.Account.local.changeUserName.nameIsEmpty", usrIndx))
+                  }
+                }, [currentName, nowUserName])
+
                 return <div className={style["Account"]}>
+                  <KiloDown.Subtitle>{t("setting.Account.local.changeUserName", usrIndx)}</KiloDown.Subtitle>
+                  <br />
+                  {nameMsg ? <>
+                    <span>{nameMsg}</span>
+                    <br />
+                    <br />
+                  </> : ""}
+                  <input
+                    kiase-sty=""
+                    placeholder={t("setting.Account.local.changeUserName.name", usrIndx)}
+                    type="text"
+                    onChange={e => setCurrentName(e.currentTarget.value)}
+                    value={currentName}
+                  />
+                  <br />
+                  <br />
+                  <div className={style["buttonList"]}>
+                    <button kiase-sty="" disabled={nowUserName === currentName} onClick={() => setUserName()}>{t("setting.Account.local.changeUserName.update", usrIndx)}</button>
+                    <button kiase-sty="" disabled={nowUserName === currentName} onClick={() => setUserName(true)}>{t("setting.Account.local.changeUserName.restore", usrIndx)}</button>
+                  </div>
+
+                  <br />
+                  <br />
+
                   {nowPass ?
                     <>
                       <KiloDown.Subtitle>{t("setting.Account.local.changePassword", usrIndx)}</KiloDown.Subtitle>
                       <br />
-                      {accMsg ? <>
-                        <span>{accMsg}</span>
+                      {passMsg ? <>
+                        <span>{passMsg}</span>
                         <br />
                         <br />
                       </> : ""}
-                      <input
-                        kiase-sty=""
+                      <PasswordInput
                         placeholder={t("setting.Account.local.changePassword.current", usrIndx)}
-                        type="password"
                         onChange={e => setCurrentPass(e.currentTarget.value)}
                         value={currentPass}
                       />
                       <br />
                       <br />
-                      <input
-                        kiase-sty=""
+                      <PasswordInput
                         placeholder={t("setting.Account.local.changePassword.new", usrIndx)}
-                        type="password"
                         onChange={e => setNewPass(e.currentTarget.value)}
                         value={newPass}
                       />
                       <br />
                       <br />
-                      <input
-                        kiase-sty=""
+                      <PasswordInput
                         placeholder={t("setting.Account.local.changePassword.newAgain", usrIndx)}
-                        type="password"
                         onChange={e => setNewPassAgain(e.currentTarget.value)}
                         value={newPassAgain}
                       />
                       <br />
                       <br />
                       <div className={style["buttonList"]}>
-                        <button kiase-sty="" onClick={() => setPassKey()}>{t("setting.Account.local.changePassword.update", usrIndx)}</button>
-                        <button kiase-sty="" onClick={() => setPassKey(true)}>{t("setting.Account.local.changePassword.remove", usrIndx)}</button>
+                        <button kiase-sty="" disabled={!(currentPass && newPass && newPassAgain)} onClick={() => setPassKey()}>{t("setting.Account.local.changePassword.update", usrIndx)}</button>
+                        <button kiase-sty="" disabled={!(currentPass && newPass && newPassAgain)} onClick={() => setPassKey(true)}>{t("setting.Account.local.changePassword.remove", usrIndx)}</button>
                       </div>
                     </>
                     :
                     <>
                       <KiloDown.Subtitle>{t("setting.Account.local.setPassword", usrIndx)}</KiloDown.Subtitle>
                       <br />
-                      <input
-                        kiase-sty=""
+                      <PasswordInput
                         placeholder={t("setting.Account.local.setPassword.new", usrIndx)}
-                        type="password"
                         onChange={e => setCurrentPass(e.currentTarget.value)}
                         value={currentPass}
                       />
                       <br />
                       <br />
-                      <button kiase-sty="" onClick={() => setPassKey()}>{t("setting.Account.local.setPassword.setPass", usrIndx)}</button>
+                      <button kiase-sty="" disabled={!currentPass} onClick={() => setPassKey()}>{t("setting.Account.local.setPassword.setPass", usrIndx)}</button>
                     </>}
 
                   <br />
@@ -4431,7 +4579,7 @@ const windowsType = {
                 })
 
                 useEffect(() => {
-                  setAvaCfg(workSpaceStatus.userList[usrIndx].saveInfo.user.avatar)
+                  setAvaCfg(USER(usrIndx).saveInfo.user.avatar)
                 }, [workSpaceStatus])
 
                 const updateVal = (key: keyof workSpaceType.Unit.BaseItem.Image, val: number) => {
@@ -4568,7 +4716,7 @@ const windowsType = {
                         _.userList[usrIndx].saveInfo.user.avatar = avaCfg
                         return _
                       })}>{t("setting.Account.avatar.apply", usrIndx)}</button>
-                      <button
+                      {avaCfg.fromPost && <button
                         kiase-sty=""
                         onClick={() => someActions.openWithGetByID(avaCfg.fromPost!)}
                         draggable={true}
@@ -4578,14 +4726,69 @@ const windowsType = {
                             data: avaCfg.fromPost!
                           });
                         }}
-                      >{t("setting.Account.avatar.source", usrIndx)}</button>
+                      >{t("setting.Account.avatar.source", usrIndx)}</button>}
                     </div>
                   </div>
                 </div>
               }
               case "e621": {
+                const [nowAuth, setNowAuth] = useState<workSpaceType.Unit.E621Auth>(workSpaceStatus.userList[usrIndx].saveInfo.user.e621 ?? {})
+                const [currentKey, setCurrentKey] = useState<string>(nowAuth.key ?? "")
+                const [currentName, setCurrentName] = useState<string>(nowAuth.name ?? "")
 
-                return <></>
+                const isSame = (nowAuth.key === currentKey) && (nowAuth.name === currentName);
+
+                useEffect(() => {
+                  setNowAuth(workSpaceStatus.userList[usrIndx].saveInfo.user.e621 ?? {})
+                }, [workSpaceStatus.userList[usrIndx].saveInfo.user.e621])
+
+                const setAuth = useCallback((restore?: boolean) => {
+                  if (restore) {
+                    setCurrentKey(nowAuth.key ?? "")
+                    setCurrentName(nowAuth.name ?? "")
+                  } else {
+                    newInput.message(t("setting.Account.e621.msg", usrIndx), [
+                      { name: t("setting.Account.e621.msg.yes", usrIndx), value: "yes", key: "Enter" },
+                      { name: t("setting.Account.e621.msg.no", usrIndx), value: "" },
+                    ], (e) => {
+                      if (e === "yes") {
+                        setWorkSpaceStatus(prev => {
+                          const _ = cloneDeep(prev)
+                          _.userList[usrIndx].saveInfo.user.e621 = { key: currentKey, name: currentName }
+
+                          return _
+                        })
+                        setIsLogin(false)
+                      }
+                    })
+                  }
+                }, [nowAuth, currentKey, currentName])
+
+                return <>
+                  <KiloDown.Subtitle>{t("setting.Account.e621.title", usrIndx)}</KiloDown.Subtitle>
+                  <KiloDown.Thirdtitle>{t("setting.Account.e621.info", usrIndx)}</KiloDown.Thirdtitle>
+                  <br />
+                  <input
+                    type="text"
+                    kiase-sty=""
+                    placeholder={t("setting.Account.e621.inp.key", usrIndx)}
+                    onChange={e => setCurrentName(e.currentTarget.value)}
+                    value={currentName}
+                  />
+                  <br />
+                  <br />
+                  <PasswordInput
+                    placeholder={t("setting.Account.e621.inp.name", usrIndx)}
+                    onChange={e => setCurrentKey(e.currentTarget.value)}
+                    value={currentKey}
+                  />
+                  <br />
+                  <br />
+                  <div className={style["buttonList"]}>
+                    <button kiase-sty="" disabled={isSame} onClick={() => setAuth()}>{t("setting.Account.e621.btn.update", usrIndx)}</button>
+                    <button kiase-sty="" disabled={isSame} onClick={() => setAuth(true)}>{t("setting.Account.e621.btn.update", usrIndx)}</button>
+                  </div>
+                </>
               }
               case "language": {
 
@@ -4603,7 +4806,7 @@ const windowsType = {
                   </div>
                   <div className={style["btns"]}>
                     {list.map(l => <button
-                      className={workSpaceStatus.userList[usrIndx].setting.lang === l.id ? style["activ"] : ""}
+                      className={USER(usrIndx).setting.lang === l.id ? style["activ"] : ""}
                       onMouseMove={() => setNotic(l.notic)}
                       onMouseLeave={() => setNotic("...")}
                       onClick={() => setWorkSpaceStatus(e => {
@@ -4646,12 +4849,17 @@ const windowsType = {
               case "general": {
                 const scaleGear = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
 
+                const timeCode = fuckingState.clock()
+                const [format, setFormat] = useState<string[]>(USER(usrIndx).setting.appearance.clockFormat)
+
                 return <>
-                  <KiloDown.Title>{"整體的縮放"}</KiloDown.Title>
-                  <KiloDown.Thirdtitle>{"除非有特殊需求 不然不要縮太小 對眼睛不好"}</KiloDown.Thirdtitle>
+                  <KiloDown.Title>{t("setting.Appearance.general.scale", usrIndx)}</KiloDown.Title>
+                  <KiloDown.Thirdtitle>{t("setting.Appearance.general.scale.info", usrIndx)}</KiloDown.Thirdtitle>
                   <div className={style["buttonList"]}>
                     {scaleGear.map((scale, i) => <button
+                      key={i}
                       kiase-sty=""
+                      btn-activ={`${USER(usrIndx).setting.appearance.scale === scale}`}
                       onClick={() => setWorkSpaceStatus(e => {
                         const _ = cloneDeep(e)
 
@@ -4667,46 +4875,32 @@ const windowsType = {
                   <br />
                   <br />
 
-                  <KiloDown.Title>{"右下角時鐘的格式"}</KiloDown.Title>
-                  <KiloDown.Thirdtitle>{"除非特殊需求 啊不然建議還是隨便寫個"}</KiloDown.Thirdtitle>
-                  <KiloDown.SmallText>{"除非....額 你跟我一樣失去了時間觀念"}<br />{"欸那不是更應該放時鐘嗎"}</KiloDown.SmallText>
-                  <br />
+                  <KiloDown.Title>{t("setting.Appearance.general.clockFormat", usrIndx)}</KiloDown.Title>
+                  <KiloDown.Thirdtitle>{t("setting.Appearance.general.clockFormat.info", usrIndx)}</KiloDown.Thirdtitle>
+                  <KiloDown.SmallText>{t("setting.Appearance.general.clockFormat.info.fun", usrIndx).map((e: string) => <>{e}<br /></>)}</KiloDown.SmallText>
+                  <KiloDown.Thirdtitle>{t("setting.Appearance.general.clockFormat.preview", usrIndx)}</KiloDown.Thirdtitle>
+                  {format.map((e, i) => <div key={i} mid-txt="">{cnvFormat.clock(timeCode, e)}</div>)}
                   <br />
                   <div small-txt="">{
-                    [
-                      ":HH:  - 24小時制的小時",
-                      ":mm:  - 分鐘",
-                      ":ss:  - 秒",
-                      "",
-                      "-YY-  - 四位數的年份",
-                      "-yy-  - 兩位數的年份",
-                      "-mm-  - 數字的月",
-                      "-dd-  - 日",
-                    ].map((e, i) => e ? <div pre-text="" key={i}>{e}</div> : <br />)
+                    t("setting.Appearance.general.clockFormat.formatInfo", usrIndx).map((e: string, i: number) => e ? <div pre-text="" key={i}>{e}</div> : <br key={i} />)
                   }</div >
                   <br />
                   {(() => {
-                    const count = workSpaceStatus.userList[usrIndx].setting.appearance.clockFormat.length;
+                    const count = format.length;
                     let txt = "";
 
-                    if (count > 2) txt = "啊 下面這個....不要放太多....會破版....除非你喜歡破版的感覺.....";
-                    else if (count <= 0) txt = "啊你的....時鐘呢?";
+                    if (count > 2) txt = t("setting.Appearance.general.clockFormat.overFlow", usrIndx);
+                    else if (count <= 0) txt = t("setting.Appearance.general.clockFormat.none", usrIndx);
 
                     if (txt)
                       return <> <KiloDown.SmallText>{txt}</KiloDown.SmallText><br /><br /></>;
                   })()}
                   <SettingEditor.ListEditor
-                    list={workSpaceStatus.userList[usrIndx].setting.appearance.clockFormat}
-                    onChange={(e) => {
-                      setWorkSpaceStatus(prev => {
-                        const _ = cloneDeep(prev);
-                        _.userList[usrIndx].setting.appearance.clockFormat = e;
-                        return _
-                      })
-                    }}
+                    list={format}
+                    onChange={setFormat}
                     children={(child) => <div className={style["ListEditor"]}>
                       <div className={style["list"]}>
-                        {child.items.map((e, i) => <div className={style["item"]}>
+                        {child.items.map((e, i) => <div className={style["item"]} key={i}>
                           <input type="text" kiase-sty="" value={e.data} onChange={t => e.ops.update(t.currentTarget.value)} />
 
                           <button kiase-sty="" non-pad="" onClick={() => e.ops.moveUp()}>
@@ -4731,6 +4925,33 @@ const windowsType = {
                       </button>
                     </div >}
                   />
+                  <br />
+                  <div className={style["buttonList"]}>
+                    <button
+                      kiase-sty=""
+                      disabled={USER(usrIndx).setting.appearance.clockFormat.join("") === format.join("")}
+                      onClick={() => {
+                        setWorkSpaceStatus(prev => {
+                          const _ = cloneDeep(prev);
+                          _.userList[usrIndx].setting.appearance.clockFormat = format;
+                          return _
+                        })
+                      }}
+                    >{t("setting.Appearance.general.clockFormat.apply", usrIndx)}</button>
+                    <button
+                      kiase-sty=""
+                      disabled={USER(usrIndx).setting.appearance.clockFormat.join("") === format.join("")}
+                      onClick={() => {
+                        setFormat(USER(usrIndx).setting.appearance.clockFormat)
+                      }}
+                    >{t("setting.Appearance.general.clockFormat.restore", usrIndx)}</button>
+                    <button
+                      kiase-sty=""
+                      onClick={() => {
+                        setFormat(newEmptyAccount.setting.appearance.clockFormat)
+                      }}
+                    >{t("setting.Appearance.general.clockFormat.restoreDefault", usrIndx)}</button>
+                  </div>
 
 
                 </>
@@ -4741,34 +4962,29 @@ const windowsType = {
 
                 useEffect(() => {
                   (async () => {
+                    const usr = USER(usrIndx)
+                    const ws = usr.workSpaces[usr.nowWorkSpace]
 
-                    const wallpaperUrl = workSpaceStatus.userList[usrIndx].setting.appearance.wallpaper.url!;
+                    const wallpaperUrl = ws.setting.wallpaper.url!;
 
                     const out = await LABS_E621_API.other.proxy({ url: wallpaperUrl });
 
                     setColorList(out)
                   })()
 
-                }, [workSpaceStatus.userList[usrIndx].setting.appearance.wallpaper])
+                }, [USER(usrIndx).setting.appearance.wallpaper])
 
                 useEffect(() => {
-                  setNewColor(workSpaceStatus.userList[usrIndx].setting.appearance.color)
+                  const usr = USER(usrIndx)
+                  setNewColor(usr.workSpaces[usr.nowWorkSpace].setting.color)
                 }, [])
 
                 return <>
                   <div>懶惰寫界面 先這樣吧 凑合著用</div>
                   <input type="color" value={newColor} onChange={(e) => setNewColor(e.currentTarget.value)} />
-                  <button kiase-sty="" onClick={() => setWorkSpaceStatus((e) => {
-                    const _ = cloneDeep(e)
-
-                    _.userList[usrIndx].setting.appearance.color = newColor;
-                    _app.setColor(newColor)
-
-                    return _
-                  })}>{"apply"}</button>
+                  <button kiase-sty="" onClick={() => someActions.setColor(usrIndx, newColor)}>{"apply"}</button>
                   <br />
                   {colorList}
-
                 </>
               }
               case "wallpaper": {
@@ -4776,8 +4992,11 @@ const windowsType = {
                   url: ""
                 })
 
+                const resolution = fuckingState.resolution();
+
                 useEffect(() => {
-                  setBgCfg(workSpaceStatus.userList[usrIndx].setting.appearance.wallpaper)
+                  const usr = USER(usrIndx)
+                  setBgCfg(usr.workSpaces[usr.nowWorkSpace].setting?.wallpaper ?? usr.setting.appearance.wallpaper)
                 }, [workSpaceStatus])
 
                 const updateVal = (key: keyof workSpaceType.Unit.BaseItem.Image, val: number) => {
@@ -4792,6 +5011,7 @@ const windowsType = {
                     <div className={style["frame"]}>
                       <div
                         className={style["image"]}
+                        style={{ aspectRatio: `${resolution[0]} / ${resolution[1]}` }}
                         onDragOver={e => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -4912,10 +5132,11 @@ const windowsType = {
 
                       <button kiase-sty="" onClick={() => setWorkSpaceStatus(e => {
                         const _ = cloneDeep(e);
-                        _.userList[usrIndx].setting.appearance.wallpaper = bgCfg
+                        const usr = _.userList[usrIndx]
+                        usr.workSpaces[usr.nowWorkSpace].setting.wallpaper = bgCfg
                         return _
                       })}>{t("setting.Appearance.wallpaper.apply", usrIndx)}</button>
-                      <button
+                      {bgCfg.fromPost && <button
                         kiase-sty=""
                         onClick={() => someActions.openWithGetByID(bgCfg.fromPost!)}
                         draggable={true}
@@ -4925,7 +5146,7 @@ const windowsType = {
                             data: bgCfg.fromPost!
                           });
                         }}
-                      >{t("setting.Appearance.wallpaper.source", usrIndx)}</button>
+                      >{t("setting.Appearance.wallpaper.source", usrIndx)}</button>}
                     </div>
                   </div>
                 </div>
@@ -4943,49 +5164,56 @@ const windowsType = {
                   <div className={style["Text"]}>
                     <div className={style["Frame"]}>
                       <h1>E621 App</h1>
-                      <h2>inDev 0.0.2</h2>
+                      <h2>inDev 0.0.3</h2>
                       <h3>{navigator.appVersion}</h3>
 
                       <br />
 
                       <h2>
-                        {t("setting.Information.general.line.1", usrIndx).map((e: string) => <>{e}<br /></>)}
+                        {t("setting.Information.general.line.1", usrIndx).map((e: string, i: number) => <>{e}<br key={i} /></>)}
                       </h2>
 
                       <br />
 
                       <h4>
-                        {t("setting.Information.general.line.2", usrIndx).map((e: string) => <>{e}<br /></>)}
+                        {t("setting.Information.general.line.2", usrIndx).map((e: string, i: number) => <>{e}<br key={i} /></>)}
                         <br />
                         <br />
                         <a href="https://github.com/kiasenolo/E621-App/" kilo-style="" target="_blank">{t("setting.Information.general.repoLink", usrIndx)}</a>
                       </h4>
                     </div>
                     <br />
-                    <button kiase-sty="" onClick={() => functions.download(functions.toBase64(JSON.stringify(workSpaceStatus)), "Default.wss")}>Save</button>
-                    <button kiase-sty="" onClick={() => {
-                      newInput.message(
-                        "會覆蓋掉你的所有東西",
-                        [{ name: "先不要", value: "" }, { name: "行", value: "ok", key: "Enter" }],
-                        async (e) => {
-                          if (e !== "ok") return;
-                          const inp = document.createElement("input")
-                          inp.type = "file"; inp.accept = ".wss"; inp.click();
-                          inp.onchange = (ev) => {
-                            const files = (ev.target as HTMLInputElement).files;
-                            if (files && files[0]) {
-                              const reader = new FileReader();
-                              reader.onload = (loadEv) => {
-                                try {
-                                  setWorkSpaceStatus(JSON.parse(functions.fromBase64(loadEv.target?.result?.toString() ?? "{}")));
-                                } catch (err) { console.error("Import failed", err); newInput.message("Import Failed"); }
-                              };
-                              reader.readAsText(files[0]);
+                    {t("IN_DEV.tips", usrIndx).map((e: string, i: number) => <KiloDown.Thirdtitle key={i}>{e}</KiloDown.Thirdtitle>)}
+                    <div className={style["buttonList"]}>
+                      <button kiase-sty="" onClick={() => functions.download(functions.toBase64(JSON.stringify(workSpaceStatus)), "Default.wss")}>
+                        {t("IN_DEV.save", usrIndx)}
+                      </button>
+                      <button kiase-sty="" onClick={() => {
+                        newInput.message(
+                          t("IN_DEV.import.msg", usrIndx),
+                          [{ name: t("IN_DEV.import.no", usrIndx), value: "" }, { name: t("IN_DEV.import.yes", usrIndx), value: "ok", key: "Enter" }],
+                          async (e) => {
+                            if (e !== "ok") return;
+                            const inp = document.createElement("input")
+                            inp.type = "file"; inp.accept = ".wss"; inp.click();
+                            inp.onchange = (ev) => {
+                              const files = (ev.target as HTMLInputElement).files;
+                              if (files && files[0]) {
+                                const reader = new FileReader();
+                                reader.onload = (loadEv) => {
+                                  try {
+                                    setWorkSpaceStatus(JSON.parse(functions.fromBase64(loadEv.target?.result?.toString() ?? "{}")));
+                                  } catch (err) { console.error("Import failed", err); newInput.message("Import Failed"); }
+                                };
+                                reader.readAsText(files[0]);
+                              }
                             }
                           }
-                        }
-                      )
-                    }}>Inmport</button>
+                        )
+                      }}>
+                        {t("IN_DEV.import", usrIndx)}
+                      </button>
+                    </div>
                   </div>
                 </div>
               }
@@ -5170,40 +5398,131 @@ const windowsType = {
             if (itemdata) {
               const item: e621Type.DragItemType.defaul = JSON.parse(itemdata)
               const { data, type } = item
-              if (type === "post") {
-                const id = data.id;
-                someActions.saveToTmp(usrIndx, {
-                  type: "postGetByID",
-                  data: {
-                    currentId: data.id,
-                    status: "success",
-                    fetchedPost: data
-                  }
-                }, `Post Get By ID [ ${data.id} ]`, `post_get_by_id-${data.id}`)
-              } else if (type === "postSearch") {
-                someActions.saveToTmp(usrIndx, { type: "postSearch", data: item.data }, item.thisWindow!.title, item.thisWindow!.id)
-              } else if (type === "pool") {
-                someActions.saveToTmp(usrIndx, { type: "pool", data: item.data }, item.thisWindow!.title, item.thisWindow!.id)
-              } else if (type === "tag") {
-                if (data.action === "=") {
-                  const createAt = new Date().getTime()
-                  someActions.saveToTmp(usrIndx,
-                    {
-                      type: "postSearch",
-                      data: {
-                        nowPage: 1,
-                        pageCache: [],
-                        searchTags: [data.tag]
+
+              switch (type) {
+                case "tag": {
+                  if (data.action === "=") {
+                    const createAt = new Date().getTime()
+                    someActions.saveToTmp(usrIndx,
+                      {
+                        type: "postSearch",
+                        data: {
+                          nowPage: 1,
+                          pageCache: [],
+                          searchTags: [data.tag]
+                        }
                       }
+                      , `${t("windowsType.postSearch", usrIndx)} [ ${data.tag} ]`, `post_search-${createAt}`)
+                  }
+                  break;
+                };
+                case "postSearch": {
+                  someActions.saveToTmp(usrIndx, { type: "postSearch", data: item.data }, item.thisWindow!.title, item.thisWindow!.id)
+                  break;
+                };
+                case "post": {
+                  someActions.saveToTmp(usrIndx, {
+                    type: "postGetByID",
+                    data: {
+                      currentId: data.id,
+                      status: "success",
+                      fetchedPost: data
                     }
-                    , `Post Search [ ${data.tag} ]`, `post_search-${createAt}`)
-                }
+                  }, `${t("windowsType.postGetByID", usrIndx)} [ ${data.id} ]`, `post_get_by_id-${data.id}`)
+                  break;
+                };
+                case "postId": {
+                  someActions.saveToTmp(usrIndx, {
+                    type: "postGetByID",
+                    data: {
+                      currentId: data,
+                      status: "loading",
+                    }
+                  }, `${t("windowsType.postGetByID", usrIndx)} [ ${data} ]`, `post_get_by_id-${data}`)
+                  break;
+                };
+                case "postImg": {
+                  someActions.saveToTmp(usrIndx, {
+                    type: "viewer",
+                    data: data
+                  }, `${t("windowsType.viewer", usrIndx)} [ ${data.id} ]`, `viewer-${data.id}`)
+                  break;
+                };
+                case "pool": {
+                  someActions.saveToTmp(usrIndx, { type: "pool", data: item.data }, item.thisWindow!.title, item.thisWindow!.id)
+                  break;
+                };
+                case "poolId": {
+                  someActions.saveToTmp(usrIndx, {
+                    type: "pool",
+                    data: {
+                      nowPage: 1,
+                      pageCache: {},
+                      poolId: data
+                    }
+                  },
+                    `${t("windowsType.pool", usrIndx)} : ${data} [ Page : 1 ]`,
+                    `pool-${data}`
+                  )
+                  break;
+                };
+                case "setting": {
+                  _app.clearNotic();
+                  _app.throwNotic("儲存設定檔請去設定裏面自己匯出 這裏不會鳥你");
+                  break;
+                };
+                case "temp": {
+                  _app.clearNotic();
+                  _app.throwNotic("沒打算玩樹狀結構");
+                  break;
+                };
+                case "text": {
+                  _app.clearNotic();
+                  _app.throwNotic("欸....純文字嗎...下次");
+                  break;
+                };
               }
             }
           }}
         >
-          {workSpaceStatus.userList[usrIndx].saves.tmpList.map((item, index) => {
+          {USER(usrIndx).saves.tmpList.map((item, index) => {
             const baseDely = index * .05
+            const dItem: e621Type.DragItemType.defaul | undefined = (() => {
+              const { data } = item
+              switch (data.type) {
+                case "postSearch":
+                  return {
+                    type: "postSearch",
+                    data: data.data
+                  }
+
+                case "postGetByID":
+                  if (data.data.fetchedPost) {
+                    return {
+                      type: "post",
+                      data: data.data.fetchedPost
+                    }
+                  } else {
+                    return {
+                      type: "postID",
+                      data: data.data.currentId
+                    }
+                  }
+                case "pool":
+                  return {
+                    type: "pool",
+                    data: data.data
+                  }
+                case "viewer":
+                  return {
+                    type: "postImg",
+                    data: data.data
+                  }
+
+                default: return undefined
+              }
+            })() as e621Type.DragItemType.defaul;
+
             return <div
               key={item.createAt}
               className={style["item"]}
@@ -5213,10 +5532,6 @@ const windowsType = {
               }}
               onDrop={e => {
                 if (!e.dataTransfer) return;
-                if (item.data.type !== "postSearch") return;
-                e.preventDefault();
-                e.stopPropagation();
-
                 const itemdata = e.dataTransfer.getData(e621Type.DragItemType.appname)
 
                 if (itemdata) {
@@ -5224,6 +5539,7 @@ const windowsType = {
                   const { data, type } = item
                   if (type === "tag") {
                     if (data.action === "+") {
+                      StopEvent(e);
                       setWorkSpaceStatus(prev => {
                         const _ = cloneDeep(prev)
 
@@ -5243,7 +5559,7 @@ const windowsType = {
                             return {
                               createAt: item.createAt,
                               windowId: item.windowId,
-                              windowTitle: `Post Search [ ${searchTags.join(",")} ]`,
+                              windowTitle: `${t("windowsType.postSearch", usrIndx)} [ ${searchTags.length === 0 ? t("windowsType.postSearch.title.noTags", usrIndx) : searchTags.join(",")} ]`,
                               data: {
                                 type: "postSearch",
                                 data: {
@@ -5259,6 +5575,7 @@ const windowsType = {
                         return _
                       })
                     } else if (data.action === "-") {
+                      StopEvent(e);
                       setWorkSpaceStatus(prev => {
                         const _ = cloneDeep(prev)
 
@@ -5278,7 +5595,7 @@ const windowsType = {
                             return {
                               createAt: item.createAt,
                               windowId: item.windowId,
-                              windowTitle: `Post Search [ ${searchTags.join(",")} ]`,
+                              windowTitle: `${t("windowsType.postSearch", usrIndx)} [ ${searchTags.length === 0 ? t("windowsType.postSearch.title.noTags", usrIndx) : searchTags.join(",")} ]`,
                               data: {
                                 type: "postSearch",
                                 data: {
@@ -5297,6 +5614,8 @@ const windowsType = {
                   }
                 }
               }}
+              draggable={dItem ? true : false}
+              onDragStart={e => dragItem ? dragItem(e, dItem) : ""}
             >
               <div className={style["main"]}>
                 <div className={style["info"]}>
@@ -5330,7 +5649,7 @@ const windowsType = {
                         () => {
                           const targetID = item.windowId || `${item.createAt}`; // 相容舊資料，如果有 windowId 則用它
 
-                          const pureId = targetID.replace(/^(post_search-|post-|post_get_by_id-|pool-)/, "");
+                          const pureId = targetID.replace(/^(post_search-|post-|post_get_by_id-|pool-|viewer-)/, "");
 
                           const getChild = () => {
                             const remountKey = Date.now();
@@ -5347,6 +5666,9 @@ const windowsType = {
 
                               case "pool":
                                 return <windowsType.pool key={remountKey} id={pureId} />;
+
+                              case "viewer":
+                                return <windowsType.viewer key={remountKey} id={pureId} />;
 
                               default:
                                 return <></>;
@@ -5374,7 +5696,49 @@ const windowsType = {
                           }
                         }
                       ],
-                    ] as [JSX.Element, (() => void)][]).map((e, i) => <button key={i} onClick={e[1]}>{e[0]}</button>)
+                      (() => {
+                        const { data } = item
+                        switch (data.type) {
+                          case "postSearch":
+                            return {
+                              type: "postSearch",
+                              data: data.data
+                            }
+
+                          case "postGetByID":
+                            if (data.data.fetchedPost) {
+                              return {
+                                type: "post",
+                                data: data.data
+                              }
+                            } else {
+                              return {
+                                type: "postID",
+                                data: data.data.currentId
+                              }
+                            }
+                          case "pool":
+                            return {
+                              type: "pool",
+                              data: data.data
+                            }
+                          case "viewer":
+                            return {
+                              type: "postImg",
+                              data: data.data
+                            }
+                        }
+                      })() as e621Type.DragItemType.defaul,
+                    ] as ([JSX.Element, (() => void)] | [JSX.Element, (() => void), e621Type.DragItemType.defaul])[])
+                      .map((e, i) =>
+                        i === 2 ? <></> :
+                          <button
+                            key={i}
+                            onClick={e[1]}
+                          >
+                            {e[0]}
+                          </button>
+                      )
                   }
                 </div>
               </div>
@@ -5392,6 +5756,7 @@ const windowsType = {
               </div>
             </div>
           })}
+          <div style={{ marginTop: "100px" }} />
         </div>
       </WINDOW_FRAME >
     )
@@ -5425,7 +5790,7 @@ someActions.openWithViewer = (post) => {
     })
 }
 
-createWindow = (wmRef, customData, other) => {
+createWindow = function (wmRef, customData, other, setData) {
   const wm = wmRef.current
   const createAt = new Date().getTime()
 
@@ -5433,7 +5798,47 @@ createWindow = (wmRef, customData, other) => {
     if (wm?.getWindow(winID)) {
       wm?.bringToFront(winID)
       const win = wm?.getWindow(winID)
-      win?.setRect({ top: other?.top, left: other?.left }, "px")
+      win?.setRect({ top: other?.top, left: other?.left }, "px", other?.anchor)
+      if (setData) {
+        win?.setData(customData)
+        switch (customData.type) {
+          case "postSearch": {
+            return win?.update({
+              children: <windowsType.postSearch id={`${createAt}`} />,
+            })
+          }
+
+          case "postGetByID": {
+            const { data } = customData
+            const cId = data.currentId;
+            return win?.update({
+              children: <windowsType.postGetByID id={`${cId}`} key={createAt} />,
+            })
+          }
+
+          case "pool": {
+            const { data } = customData
+            const pId = data.poolId;
+            return win?.update({
+              children: <windowsType.pool id={`${pId}`} key={createAt} />,
+            })
+          }
+
+          case "viewer": {
+            const { data } = customData;
+            const pId = data.id;
+            return win?.update({
+              children: <windowsType.viewer id={`${pId}`} key={createAt} />,
+            })
+          }
+
+          case "preview": {
+            return win?.update({
+              children: <windowsType.peekPreview key={createAt} />,
+            })
+          }
+        }
+      }
       return true
     } else {
       return false
@@ -5478,12 +5883,27 @@ createWindow = (wmRef, customData, other) => {
 
       if (hasId(id)) return id;
 
+      const { defaultSearchFilter } = USER(usrIndx).setting.search
+
+      type dType = e621Type.window.postSearch
+
+      const defaultData: dType = {
+        type: "postSearch",
+        data: {
+          nowPage: 1,
+          pageCache: {},
+          searchTags: [],
+          searchFilter: defaultSearchFilter
+        }
+      }
+      const data: dType = merge({}, defaultData, customData)
+
       return wm?.createWindow({
         id,
         title: `${t("windowsType.postSearch", usrIndx)} [ ${createAt} ]`,
         children: <windowsType.postSearch id={`${createAt}`} />,
         ...other,
-        customData,
+        customData: data
       })
     }
 
@@ -5534,6 +5954,31 @@ createWindow = (wmRef, customData, other) => {
         customData,
       })
     }
+
+    case "preview": {
+      const { data } = customData;
+      const pId = data.id;
+      const id = `peek-preview`;
+      Kiasole.log(JSON.stringify(customData))
+
+      if (hasId(id)) return id;
+
+      return wm?.createWindow({
+        id,
+        title: `${t("windowsType.preview", usrIndx)} [ ${pId} ]`,
+        children: <windowsType.peekPreview />,
+        height: 720,
+        width: 1280,
+        ...other,
+        customData,
+        actions: {
+          canClose: false,
+          canMaximize: false,
+          canMinimize: false,
+          canResize: false
+        }
+      })
+    }
   }
 };
 
@@ -5546,9 +5991,10 @@ const Menu = () => {
   const [hoverd, setHoverd] = useState<boolean>(false);
 
   MenuAction.showMenu = (items: MenuAction.Item[], [top, left], center, onDrag) => {
+    const scale = 100 / USER(usrIndx).setting.appearance.scale
     setMenuCenter(center ?? "tl")
     setMenuItems(items);
-    setMenuPosition([top, left]);
+    setMenuPosition([(top * scale), (left * scale)]);
     setMenuDisplay(true);
     setDragEvent(() => (onDrag ?? (() => { })))
   };
@@ -5614,7 +6060,8 @@ const Menu = () => {
               if (item[1]) item[1]();
               setMenuDisplay(false);
             }}
-            draggable={item.length === 3}
+            disabled={item[3] !== undefined ? !item[3] : false}
+            draggable={item[2] ? true : false}
             onDragStart={(e) => {
               item[2] ? dragItem(e, item[2]) : "";
               setMenuDisplay(false);
@@ -5629,47 +6076,596 @@ const Menu = () => {
   )
 }
 
+const sharedVideoRegistry = new Map<string, HTMLVideoElement>()
+
+function toProxiedUrl(url: string): string {
+  if (!url) return url
+  const isVideo = /\.(webm|mp4)$/i.test(url)
+  if (!isVideo) return url
+  return `/api/_LABS/E621-API/media/proxy?url=${encodeURIComponent(url)}`
+}
+
+function getOrCreateSharedVideo(url: string): HTMLVideoElement {
+  if (sharedVideoRegistry.has(url)) {
+    return sharedVideoRegistry.get(url)!
+  }
+  const video = document.createElement("video")
+  video.src = toProxiedUrl(url)
+  video.muted = true
+  video.autoplay = true
+  video.loop = true
+  video.playsInline = true
+  video.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none"
+  document.body.appendChild(video)
+  video.play().catch(() => { })
+  sharedVideoRegistry.set(url, video)
+  return video
+}
+
+const VideoMirror = ({ src, style: css }: { src: string; style?: React.CSSProperties }) => {
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  useEffect(() => {
+    const master = getOrCreateSharedVideo(src)
+    const mirror = videoRef.current!
+
+    if (typeof (master as any).captureStream === "function") {
+      mirror.srcObject = (master as any).captureStream() as MediaStream
+    } else {
+      mirror.src = src
+    }
+    mirror.play().catch(() => { })
+
+    return () => {
+      mirror.srcObject = null
+      mirror.src = ""
+    }
+  }, [src])
+
+  return <video ref={videoRef} style={css} muted autoPlay loop playsInline controls={false} />
+}
+
 const Background = ({ bg }: { bg: workSpaceType.Unit.BaseItem.Image }) => {
+  const position = `${bg.positionX ?? 50}% ${bg.positionY ?? 50}%`
+  const baseCss: React.CSSProperties = {
+    objectPosition: position,
+    transformOrigin: position,
+    transform: `scale(${(bg.scale ?? 100) / 100})`,
+  }
+
   return (
-    <div className={style["Background"]}>
-      <div className={style["Background"]}>
-        <div className={style["Image"]} style={{
-          backgroundImage: `url(${bg.url ?? ""})`,
-          backgroundPositionX: `${bg.positionX ?? 50}%`,
-          backgroundPositionY: `${bg.positionY ?? 50}%`,
-          backgroundSize: bg.scale ? bg.scale + "%" : "cover",
-          backgroundRepeat: "no-repeat"
-        }} />
-      </div>
+    <div className={style["Background"]} key={bg.url}>
+      {(() => {
+        if (functions.str.mulitEndWith([".jpg", ".jpeg", ".png", ".gif", ".webp",], bg.url.toLowerCase())) {
+          return <img style={baseCss} src={bg.url} />
+        } else if (functions.str.mulitEndWith([".webm", ".mp4",], bg.url.toLowerCase())) {
+          return <VideoMirror src={bg.url} style={baseCss} />
+        }
+      })()}
+
     </div>
   )
 }
 
+type windowsList = {
+  id: string;
+  title: string;
+  customData?: e621Type.defaul | undefined;
+}[]
+
+type RunBoxArgs = {
+  Logout: () => void
+  saveWinStatus: () => void
+  windowsList: windowsList,
+  setWorkSpaceEditor: Dispatch<SetStateAction<boolean>>,
+}
+
+const RunBox = (arg: RunBoxArgs) => {
+  type Option = {
+    name: string,
+    engName?: string,
+    action: () => void,
+  }
+  const [runBox, setRunBox] = useState<boolean>(false)
+  const [runInput, setRunInput] = useState<string>("")
+  const [options, setOptions] = useState<Option[]>([])
+  const [optionIndex, setOptionIndex] = useState<number>(0)
+
+  const runBoxInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setRunInput("")
+  }, [runBox])
+
+  const selectOpt = useCallback((offset: number) => {
+    let nowtar = optionIndex;
+    let count = options.length;
+    nowtar += offset; nowtar = (nowtar % count + count) % count;
+    setOptionIndex(nowtar)
+  }, [options, optionIndex])
+
+  useEffect(() => {
+    if (!runBox) return;
+    const keyDown = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case "ArrowUp": {
+          selectOpt(-1)
+          break;
+        }
+        case "ArrowDown": {
+          selectOpt(1)
+          break;
+        }
+      }
+    }
+
+    document.addEventListener("keydown", keyDown)
+
+    return () => {
+      document.removeEventListener("keydown", keyDown)
+    }
+  }, [runBox, selectOpt])
+
+  const optionsList = useMemo(() => {
+    const inp = runBoxInputRef.current
+
+    const focusInp = () => inp?.focus();
+
+    const actions: Option[] = [
+      {
+        name: "> " + t("windowsType.postSearch", usrIndx),
+        engName: "> " + ent("windowsType.postSearch"),
+        action() {
+          createWindow(wmRef, {
+            type: "postSearch",
+            data: {
+              nowPage: 1,
+              pageCache: [],
+              searchTags: []
+            }
+          })
+          setRunBox(false);
+        },
+      },
+      {
+        name: "> " + t("windowsType.tmpList", usrIndx),
+        engName: "> " + ent("windowsType.tmpList"),
+        action() {
+          createWindow(wmRef, {
+            type: "tmp"
+          })
+          setRunBox(false);
+        },
+      },
+
+      {
+        name: "> " + t("windowsType.setting", usrIndx),
+        engName: "> " + ent("windowsType.setting"),
+        action() {
+          createWindow(wmRef, {
+            type: "setting",
+            data: "NONE",
+          })
+          setRunBox(false);
+        },
+      },
+      {
+        name: "> " + t("workSpaceManager", usrIndx),
+        engName: "> " + ent("workSpaceManager"),
+        action() {
+          arg.setWorkSpaceEditor(true);
+        },
+      },
+      {
+        name: "> " + t("runBox.actions.saveWorkSpaceStatus", usrIndx),
+        engName: "> " + ent("runBox.actions.saveWorkSpaceStatus"),
+        action() {
+          arg.saveWinStatus()
+        },
+      },
+      {
+        name: "> " + t("startMenuSide.logout", usrIndx),
+        engName: "> " + ent("startMenuSide.logout"),
+        action() {
+          arg.Logout()
+        },
+      },
+      {
+        name: `> ${t("startMenuSide.logout", usrIndx)} ( ${t("runBox.actions.logout.withoutSaveStatus", usrIndx)} )`,
+        engName: `> ${ent("startMenuSide.logout")} ( ${ent("runBox.actions.logout.withoutSaveStatus")} )`,
+        action() {
+          setWorkSpaceStatus(prev => {
+            const _ = cloneDeep(prev)
+            _.autoLogin = false
+            _.rememberPassword = ""
+            return _
+          })
+          setIsLogin(false)
+        },
+      },
+    ]
+
+    const intro: Option[] = [
+
+      {
+        name: ": " + t("runBox.intro.searchPost", usrIndx),
+        engName: ": " + ent("runBox.intro.searchPost"),
+        action() { setRunInput(":"); focusInp(); },
+      },
+      {
+        name: ". " + t("runBox.intro.poolOrPostID", usrIndx),
+        engName: ". " + ent("runBox.intro.poolOrPostID"),
+        action() { setRunInput("."); focusInp(); },
+      },
+      {
+        name: "; " + t("runBox.intro.toggleWindows", usrIndx),
+        engName: "; " + ent("runBox.intro.toggleWindows"),
+        action() { setRunInput(";"); focusInp(); },
+      },
+      {
+        name: "> " + t("runBox.intro.appOrOtherAction", usrIndx),
+        engName: "> " + ent("runBox.intro.appOrOtherAction"),
+        action() { setRunInput(">"); focusInp(); },
+      },
+    ]
+
+    return {
+      actions,
+      intro,
+    }
+
+  }, [USER(usrIndx).setting.lang])
+
+  useEffect(() => {
+    setOptionIndex(0)
+    if (!runBox) { setOptions([]); return; };
+    const rawInp = runInput.trim()
+    const inpText = rawInp.slice(1)
+
+    const searchOptions = {
+      includeScore: true,
+      threshold: 0.3,
+      keys: [
+        "name",
+        "engName",
+      ]
+    };
+
+    const openSearch = (tags: string) => {
+      createWindow(wmRef, {
+        type: "postSearch",
+        data: {
+          nowPage: 1,
+          pageCache: [],
+          searchTags: tags.split(" ")
+        }
+      })
+      setRunBox(false)
+    }
+
+    if (rawInp.startsWith(">")) {
+      const { actions: apps } = optionsList
+      if (inpText) {
+        const fuse = new Fuse(apps, searchOptions);
+
+        setOptions(fuse.search(inpText).map(e => e.item))
+
+      } else {
+        setOptions(apps)
+      }
+    } else if (rawInp.startsWith(":")) {
+      if (inpText) {
+        setOptions([
+          {
+            name: `${t("runBox.intro.searchPost.search", usrIndx)} : [ ${inpText.split(" ")} ]`,
+            engName: `${ent("runBox.intro.searchPost.search")} : [ ${inpText.split(" ")} ]`,
+            action() {
+              openSearch(inpText)
+            },
+          }
+        ])
+      } else {
+        setOptions([
+          {
+            name: t("runBox.intro.searchPost.noTag", usrIndx),
+            engName: ent("runBox.intro.searchPost.noTag"),
+            action() {
+              openSearch("")
+            },
+          }
+
+        ])
+      }
+    } else if (rawInp.startsWith(".")) {
+      const num = Number(inpText)
+      if (inpText) {
+        if (isNaN(num)) {
+          setOptions([{
+            name: t("runBox.intro.poolOrPostID.NaN", usrIndx),
+            engName: ent("runBox.intro.poolOrPostID.NaN"),
+            action() { setRunInput(".") },
+          }])
+        } else {
+          setOptions([
+            {
+              name: `${t("windowsType.postGetByID", usrIndx)} : [ ${inpText} ]`,
+              engName: `${ent("windowsType.postGetByID")} : [ ${inpText} ]`,
+              action() {
+                createWindow(wmRef, {
+                  type: "postGetByID",
+                  data: {
+                    currentId: inpText,
+                    status: "loading",
+                  }
+                })
+                setRunBox(false)
+              },
+            },
+            {
+              name: `${t("windowsType.pool", usrIndx)} : [ ${inpText} ]`,
+              engName: `${ent("windowsType.pool")} : [ ${inpText} ]`,
+              action() {
+                createWindow(wmRef, {
+                  type: "pool",
+                  data: {
+                    poolId: +inpText,
+                    nowPage: 1,
+                    pageCache: [],
+                  }
+                })
+                setRunBox(false)
+              },
+            }
+          ])
+        }
+      } else {
+        setOptions([])
+      }
+    } else if (rawInp.startsWith(";")) {
+      const winList = arg.windowsList.map(e => wmRef.current?.getWindow(e.id))
+
+      const list: Option[] = [
+        ...winList.map(e => ({
+          name: `; ${e?.title}`,
+          action() { e?.focus(); setRunBox(false); },
+        })),
+        {
+          name: ";; " + t("runBox.intro.toggleWindows.moreAction", usrIndx),
+          engName: ";; " + ent("runBox.intro.toggleWindows.moreAction"),
+          action() {
+            setRunInput(";;")
+          },
+        }
+      ]
+
+      const actions: Option[] = [
+        {
+          name: ";; " + t("runBox.intro.toggleWindows.moreAction.closeAllWindow", usrIndx),
+          engName: ";; " + ent("runBox.intro.toggleWindows.moreAction.closeAllWindow"),
+          action() {
+            winList.forEach(e => e?.close())
+            setRunBox(false)
+          },
+        },
+        {
+          name: ";; " + t("runBox.intro.toggleWindows.moreAction.minimizeAllWindow", usrIndx),
+          engName: ";; " + ent("runBox.intro.toggleWindows.moreAction.minimizeAllWindow"),
+          action() {
+            winList.forEach(e => e?.minimize())
+            setRunBox(false)
+          },
+        },
+        {
+          name: ";; " + t("runBox.intro.toggleWindows.moreAction.restoreAllWindow", usrIndx),
+          engName: ";; " + ent("runBox.intro.toggleWindows.moreAction.restoreAllWindow"),
+          action() {
+            winList.forEach(e => e?.focus())
+            setRunBox(false)
+          },
+        },
+      ]
+
+      if (inpText) {
+        if (winList.length > 0) {
+          if (inpText.startsWith(";")) {
+            const inpTxt = inpText.slice(1)
+            if (inpTxt) {
+              const fuse = new Fuse(actions, searchOptions);
+              setOptions(fuse.search(inpTxt).map(e => e.item))
+            } else {
+              setOptions(actions)
+            }
+          } else {
+            const fuse = new Fuse(list, searchOptions);
+            setOptions(fuse.search(inpText).map(e => e.item))
+          }
+        }
+      } else {
+        if (winList.length > 0) {
+          setOptions(list)
+        } else {
+          setOptions([])
+        }
+      }
+    } else {
+      const { intro: action, actions: apps } = optionsList
+
+      if (rawInp) {
+        const all = [...action, ...apps]
+        const fuse = new Fuse(all, searchOptions);
+        const res = fuse.search(rawInp).map(e => e.item)
+        if (res.length > 0) {
+          setOptions(fuse.search(rawInp).map(e => e.item))
+        } else {
+          const num = Number(rawInp)
+          if (isNaN(num)) {
+            setOptions([
+              {
+                name: `${t("runBox.intro.searchPost.search", usrIndx)} : [ ${rawInp.split(" ")} ]`,
+                engName: `${ent("runBox.intro.searchPost.search")} : [ ${rawInp.split(" ")} ]`,
+                action() {
+                  openSearch(rawInp)
+                },
+              }
+            ])
+          } else {
+            setOptions([
+              {
+                name: `${t("windowsType.postGetByID", usrIndx)} : [ ${rawInp} ]`,
+                engName: `${ent("windowsType.postGetByID")} : [ ${rawInp} ]`,
+                action() {
+                  createWindow(wmRef, {
+                    type: "postGetByID",
+                    data: {
+                      currentId: rawInp,
+                      status: "loading",
+                    }
+                  })
+                  setRunBox(false)
+                },
+              },
+              {
+                name: `${t("windowsType.pool", usrIndx)} : [ ${rawInp} ]`,
+                engName: `${ent("windowsType.pool")} : [ ${rawInp} ]`,
+                action() {
+                  createWindow(wmRef, {
+                    type: "pool",
+                    data: {
+                      poolId: +rawInp,
+                      nowPage: 1,
+                      pageCache: [],
+                    }
+                  })
+                  setRunBox(false)
+                },
+              },
+              {
+                name: `${t("setting.Search", usrIndx)} : [ ${rawInp.split(" ")} ]`,
+                engName: `${ent("setting.Search")} : [ ${rawInp.split(" ")} ]`,
+                action() {
+                  openSearch(rawInp)
+                },
+              }
+            ])
+          }
+
+        }
+      } else {
+        setOptions(action)
+      }
+    }
+  }, [runInput, runBox, USER(usrIndx).setting.lang])
+
+  return {
+    setRunBox,
+    runBox,
+    setRunInput,
+    runBoxInputRef,
+    RunboxElement: (<div
+      className={[style["Run"], !runBox && style["hide"]].join(" ")}
+      onClick={() => setRunBox(false)}
+    >
+      <input
+        className={style["input"]}
+        type="text"
+        placeholder={t("runBox.placeholder", usrIndx)}
+        value={runInput}
+        ref={runBoxInputRef}
+        onChange={e => setRunInput(e.currentTarget.value)}
+        onKeyDown={e => {
+          switch (e.code) {
+            case "ArrowUp":
+            case "ArrowDown": {
+              e.preventDefault()
+              break
+            }
+          }
+          if (e.key === "Enter") {
+            if (options.length > 0) {
+              options[optionIndex].action();
+            } else {
+
+            }
+          }
+        }}
+        onClick={StopEvent}
+      />
+
+      {options.length > 0
+        ?
+        options.map((e, i) =>
+          <div
+            key={`${i}_${e.name}`}
+            className={style["btf-frm"]}
+            style={{
+              transitionDelay: `${i * .05}s`
+            }}
+          >
+            <button
+              onClick={(ev) => { StopEvent(ev); e.action(); }}
+              onMouseMove={() => setOptionIndex(i)}
+              className={optionIndex === i ? style["focus"] : ""}
+            >{e.name}</button>
+          </div>
+        )
+        : <button key={"NONE"} no-res="">{t("runBox.NONE", usrIndx)}</button>
+      }
+    </div>)
+  }
+}
+
 const Desktop = () => {
+  const [ready, setReady] = useState(false);
+
+  wmRef = useRef<WindowManager<e621Type.defaul> | null>(null);
+
+  const clock = fuckingState.clock()
+  const resolution = fuckingState.resolution();
+
+  // #region 一坨 State
   const [background, setBackground] = useState<workSpaceType.Unit.BaseItem.Image>({ url: "" })
   const [mouseIsPress, setMouseIsPress] = useState<boolean>(false)
-  const [windowsList, setWindowsList] = useState<{
-    id: string;
-    title: string;
-    customData?: e621Type.defaul | undefined;
-  }[]>([])
-
-  const [clock, setClock] = useState<number>(0)
+  const [windowsList, setWindowsList] = useState<windowsList>([])
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switcherIndex, setSwitcherIndex] = useState(0);
-  const originalStatesRef = useRef<Map<string, { isMinimized: boolean, isFocused: boolean }>>(new Map());
+  const [nowWorkSpace, setNowWorkSpace] = useState(() => {
+    return USER(usrIndx)?.nowWorkSpace ?? 0;
+  });
+  const [workSpaceEditor, setWorkSpaceEditor] = useState(false);
+  const [startMenu, setStartMenu] = useState<boolean>(false)
+  const [snap, setSnap] = useState<SnapPosition | null>(null)
+  // #endregion
 
-  wmRef = useRef<WindowManager<e621Type.defaul> | null>(null);
+  // #region 一坨 Ref
+  const isInitialMount = useRef(true);
+  const originalStatesRef = useRef<Map<string, { isMinimized: boolean, isFocused: boolean }>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const dragCancelAreaRef = useRef<HTMLDivElement>(null);
-
-  const [startMenu, setStartMenu] = useState<boolean>(false)
-
-  const [snap, setSnap] = useState<SnapPosition | null>(null)
   const snapElementRef = useRef<HTMLDivElement>(null);
+  const dragTimeOut = useRef<NodeJS.Timeout>(setTimeout(() => { }, 0));
+  const liveSnapshotRef = useRef<{ index: number; snapshot: workSpaceType.Unit.windowsStatus } | null>(null);
+  // #endregion
 
-  const applySnapshot = useCallback((snapshot: WindowSnapshot<e621Type.defaul>[]) => {
+  const inputKeyEvent = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case "Enter": {
+        StopEvent(e);
+        e.currentTarget.blur();
+        break;
+      }
+      case "ArrowLeft":
+      case "ArrowRight":
+      case "ArrowUp":
+      case "ArrowDown":
+      case "Escape": {
+        StopEvent(e);
+        break;
+      }
+    }
+  }, [])
+
+  const applySnapshot = useCallback((snapshot: workSpaceType.Unit.windowsStatus) => {
     const wm = wmRef.current
     if (wm) {
       wm.applySnapshot(
@@ -5696,6 +6692,9 @@ const Desktop = () => {
             case "viewer":
               return <windowsType.viewer id={windowId.replace("viewer-", "")} />;
 
+            case "preview":
+              return <windowsType.peekPreview />;
+
             case "setting":
               return <windowsType.setting />;
 
@@ -5710,29 +6709,200 @@ const Desktop = () => {
     }
   }, [])
 
-  const saveWinStatus = useCallback(() => {
-    const wm = wmRef.current
+  const saveWinStatus = useCallback((logout?: boolean) => {
+    const wm = wmRef.current;
     if (!wm) return;
-    _app.clearNotic()
-    _app.throwNotic("Windows Status Saved!")
+
+    const currentSnapshot = wm.captureSnapshot();
+
     setWorkSpaceStatus((e) => {
-      e.userList[usrIndx].windowsStatus = wm.captureSnapshot()
-      return e
-    })
-  }, [])
+      const _ = cloneDeep(e);
+      const usr = _.userList[usrIndx];
+      if (usr && usr.workSpaces[nowWorkSpace]) {
+        usr.workSpaces[nowWorkSpace].status = currentSnapshot;
+        usr.nowWorkSpace = nowWorkSpace;
+      }
+      _app.clearNotic()
+      _app.throwNotic("Windows Status Saved!")
+      if (logout) {
+        _.autoLogin = false
+        _.rememberPassword = ""
+      }
+      return _;
+    });
 
+    if (logout) setIsLogin(false);
+  }, [nowWorkSpace]);
 
-  /* 時鐘更新 */
-  useEffect(() => {
-
-    const interval = setInterval(() => {
-      setClock(new Date().getTime())
-    }, 100);
-
-    return () => {
-      clearInterval(interval)
+  const { RunboxElement, setRunBox, runBox, runBoxInputRef } = RunBox(
+    {
+      saveWinStatus,
+      windowsList,
+      setWorkSpaceEditor,
+      Logout: () => saveWinStatus(true)
     }
-  }, [])
+  )
+
+  // #region 操他媽的工作區
+
+  const handleSwitchWorkspace = (newIndex: number) => {
+    const wm = wmRef.current;
+    if (!wm || newIndex === nowWorkSpace) return;
+    if (newIndex < 0 || newIndex >= USER(usrIndx).workSpaces.length) return;
+
+    const currentSnapshot = wm.captureSnapshot();
+
+    setWorkSpaceStatus(prev => {
+      const _ = cloneDeep(prev);
+      const user = _.userList[usrIndx];
+
+      if (user.workSpaces[nowWorkSpace]) {
+        user.workSpaces[nowWorkSpace].status = currentSnapshot;
+      }
+
+      user.nowWorkSpace = newIndex;
+      return _;
+    });
+
+    setNowWorkSpace(newIndex);
+  };
+
+  const handleDeleteWorkspace = (targetIndex: number) => {
+    if (USER(usrIndx).workSpaces.length <= 1) {
+      _app.throwNotic("總得留下一個桌面吧！");
+      return;
+    }
+
+    const wm = wmRef.current;
+    const currentSnapshot = wm ? wm.captureSnapshot() : [];
+
+    let nextIndex = nowWorkSpace;
+    if (targetIndex === nowWorkSpace) {
+      nextIndex = Math.max(0, targetIndex - 1);
+    } else if (targetIndex < nowWorkSpace) {
+      nextIndex = nowWorkSpace - 1;
+    }
+
+    setNowWorkSpace(nextIndex);
+
+    setWorkSpaceStatus(prev => {
+      const _ = cloneDeep(prev);
+      const usr = _.userList[usrIndx];
+
+      if (nowWorkSpace !== targetIndex && usr.workSpaces[nowWorkSpace]) {
+        usr.workSpaces[nowWorkSpace].status = currentSnapshot;
+      }
+
+      usr.workSpaces.splice(targetIndex, 1);
+      usr.nowWorkSpace = nextIndex;
+
+      return _;
+    });
+
+    if (targetIndex === nowWorkSpace) {
+      wm?.getWindows().forEach(winInfo => wm.destroyWindow(winInfo.id));
+
+      const newWorkspace = USER(usrIndx).workSpaces.filter((_, i) => i !== targetIndex)[nextIndex];
+      if (newWorkspace && wmRef.current) {
+        applySnapshot(newWorkspace.status);
+      }
+    }
+  };
+  // #region 純他媽監聽 State
+
+  /* nowWorkSpace他變化了 他變了 他拉了 */
+  useEffect(() => {
+    if (isInitialMount.current) return;
+    const wm = wmRef.current;
+    if (!wm) return;
+
+    wm.getWindows().forEach(winInfo => wm.destroyWindow(winInfo.id));
+
+    const user = USER(usrIndx);
+    const newWorkspace = user.workSpaces[nowWorkSpace];
+    if (newWorkspace) {
+      applySnapshot(newWorkspace.status);
+    }
+
+  }, [nowWorkSpace, applySnapshot]);
+  // #endregion
+
+  /* 開工作區管理器 全村的人都要先消失 */
+  useEffect(() => {
+    if (workSpaceEditor) {
+      setRunBox(false);
+      setStartMenu(false);
+      liveSnapshotRef.current = {
+        index: nowWorkSpace,
+        snapshot: wmRef.current?.captureSnapshot() ?? []
+      };
+    }
+  }, [workSpaceEditor])
+
+  /* 某些東西出現後 我們就不要影響其他人了 */
+  useEffect(() => {
+    disableWindowKeyEvent = startMenu || workSpaceEditor || runBox
+  }, [startMenu, workSpaceEditor, runBox])
+
+
+  /* 桌布更新 */
+  useEffect(() => {
+    const user = USER(usrIndx);
+    const currentWorkspace = user.workSpaces[nowWorkSpace];
+
+    const wallpaper = currentWorkspace?.setting?.wallpaper ?? user.setting.appearance.wallpaper;
+    const color = currentWorkspace?.setting?.color ?? user.setting.appearance.color;
+
+    setBackground(typeof wallpaper === "number" ? user.saves.wallpapers[wallpaper] : wallpaper);
+    _app.setColor(color);
+  }, [workSpaceStatus, nowWorkSpace]);
+
+  /* 語言改了 重開視窗 */
+  useEffect(() => {
+    if (isInitialMount.current) return;
+    const wm = wmRef.current
+    if (wm) {
+      const wins = wm.captureSnapshot()
+      wm.getWindows().forEach(e => wm.destroyWindow(e.id))
+
+      const timer = setTimeout(() => {
+        applySnapshot(wins)
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [USER(usrIndx).setting.lang, applySnapshot]);
+
+  /* TmpList的更新 */
+  useEffect(() => {
+    const winID = "tmp-list"
+
+    if (wmRef.current?.hasWindowID(winID)) {
+      wmRef.current.updateWindow(winID, {
+        children: <windowsType.tmpList />
+      })
+    }
+  }, [USER(usrIndx).saves.tmpList])
+
+  /* AppSetting的更新 */
+  useEffect(() => {
+    const winID = "app-setting"
+
+    if (wmRef.current?.hasWindowID(winID)) {
+      wmRef.current.updateWindow(winID, {
+        children: <windowsType.setting />
+      })
+    }
+  },
+    [
+      USER(usrIndx).setting,
+      USER(usrIndx).history,
+      USER(usrIndx).saveInfo.user,
+    ]
+  )
+  // #endregion
+
+  // #region 按鍵的 Event
 
   /* 很爛的 Shift Tab */
   useEffect(() => {
@@ -5809,9 +6979,7 @@ const Desktop = () => {
               // 但不呼叫 focus() 以免搶走選中視窗的焦點
               // 這裡假設 WindowManager 有 restore 方法或類似邏輯
               // 如果只有 focus 能取消 minimize，那就依賴 snapshot
-              if (!prevState?.isMinimized) {
-                instance?.focus();
-              }
+              instance?.focus();
             }
           }
         });
@@ -5846,24 +7014,78 @@ const Desktop = () => {
   /* 一些全域的快速鍵 */
   useEffect(() => {
     let keyispress = false
+    const openRunBox = (e: any) => {
+      keyispress = true
+      const runInp = runBoxInputRef.current
+      if (!runInp) return;
+      e.preventDefault()
+      setStartMenu(false)
+      setRunBox(e => {
+        if (!e) { runInp.focus() } else { runInp.blur(); };
+        return !e
+      })
+    };
 
     const keyup = (e: KeyboardEvent) => {
       keyispress = false
     }
 
     const keydown = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case "Escape": {
+          setWorkSpaceEditor(false)
+          break
+        }
+      }
+
+      if (e.altKey && e.code === "KeyW") {
+        setWorkSpaceEditor(e => !e)
+      }
+
+      if (workSpaceEditor) return
       if (keyispress) return;
+
+      if (e.altKey) {
+        switch (e.code) {
+          case "KeyO": {
+            keyispress = true
+            createWindow(wmRef, { type: "setting", data: "NONE" })
+            break;
+          }
+
+          case "Digit0": {
+            wmRef.current?.getWindow(windowsList[9].id)?.focus();
+            break;
+          }
+
+          case "KeyR": {
+            openRunBox(e);
+            break;
+          }
+        }
+      }
 
       switch (e.code) {
         case "Escape": {
           keyispress = true
           setStartMenu(false)
+          setRunBox(false)
+          const runInp = runBoxInputRef.current
+          if (runInp) { runInp.blur(); };
+          break;
+        }
+
+        case "F1": {
+          openRunBox(e);
         }
       }
 
-      if (e.metaKey && e.ctrlKey) {
+      if (e.altKey && e.ctrlKey) {
         keyispress = true
-        setStartMenu(e => !e)
+        setStartMenu(e => {
+          if (!e) setRunBox(false);
+          return !e
+        })
       }
     }
 
@@ -5874,7 +7096,42 @@ const Desktop = () => {
       document.removeEventListener("keydown", keydown)
       document.removeEventListener("keyup", keyup)
     }
-  }, [])
+  }, [workSpaceEditor])
+
+  /* 純針對workSpaceEditor */
+  useEffect(() => {
+    let keyispress = false
+
+    const keyup = (e: KeyboardEvent) => {
+      keyispress = false
+    }
+
+    const keydown = (e: KeyboardEvent) => {
+      if (!workSpaceEditor) return;
+
+      switch (e.code) {
+        case "ArrowUp":
+        case "ArrowLeft": {
+          handleSwitchWorkspace(nowWorkSpace - 1)
+          break;
+        }
+
+        case "ArrowDown":
+        case "ArrowRight": {
+          handleSwitchWorkspace(nowWorkSpace + 1)
+          break;
+        }
+      }
+    }
+
+    document.addEventListener("keydown", keydown)
+    document.addEventListener("keyup", keyup)
+
+    return () => {
+      document.removeEventListener("keydown", keydown)
+      document.removeEventListener("keyup", keyup)
+    }
+  }, [workSpaceEditor, nowWorkSpace])
 
   /* 二些全域的快速鍵 */
   useEffect(() => {
@@ -5885,6 +7142,7 @@ const Desktop = () => {
     }
 
     const keydown = (e: KeyboardEvent) => {
+      if (workSpaceEditor) return
       if (keyispress) return;
 
       if (e.ctrlKey && (e.code === "KeyQ")) {
@@ -5955,6 +7213,27 @@ const Desktop = () => {
             break;
           }
         }
+
+
+        if (e.code.startsWith("Digit")) {
+          const wm = wmRef.current
+          if (!wm) return;
+
+          const focusWin = (indx: number) => {
+            const win = windowsList[indx];
+            if (!win) return;
+            const id = win.id;
+            id ? wm.getWindow(id)?.focus() : "";
+          }
+
+          const number = Number(e.code.slice(5))
+
+          if (number === 0) {
+            focusWin(10)
+          } else {
+            focusWin(number - 1)
+          }
+        }
       }
 
     }
@@ -5966,15 +7245,16 @@ const Desktop = () => {
       document.removeEventListener("keydown", keydown)
       document.removeEventListener("keyup", keyup)
     }
-  }, [windowsList])
+  }, [windowsList, workSpaceEditor])
 
-  /* 桌布更新 */
+  // #endregion
+
+  // #region 初始化
+
+  /* 取消首次渲染標記 */
   useEffect(() => {
-    const { setting, saves } = workSpaceStatus.userList[usrIndx]
-    const wallpaper = setting.appearance.wallpaper
-    setBackground(typeof wallpaper === "number" ? saves.wallpapers[wallpaper] : wallpaper)
-    _app.setColor(setting.appearance.color)
-  }, [workSpaceStatus]);
+    isInitialMount.current = false;
+  }, []);
 
   /* 初始化wm */
   useEffect(() => {
@@ -5983,28 +7263,58 @@ const Desktop = () => {
     }
   }, []);
 
+  /* 寫這坨注解的時候 就是爲了找這個 */
+  /* 這個是他媽的 初始化動畫 */
+  useEffect(() => {
+    (async () => {
+      await functions.timeSleep(.5e3)
+      setReady(true)
+    })()
+  }, [])
+
   /* 初始化狀態 */
   useEffect(() => {
-    const wm = wmRef.current
-    if (wm) {
-      if (workSpaceStatus.userList[usrIndx].windowsStatus) {
-        applySnapshot(workSpaceStatus.userList[usrIndx].windowsStatus)
-        setWindowsList(wm.getWindows())
-      }
-    }
-  }, []);
+    const wm = wmRef.current;
+    if (!wm) return;
 
-  /* 語言改了 重開視窗 */
-  useEffect(() => {
-    const wm = wmRef.current
-    if (wm) {
-      const wins = wm.captureSnapshot()
-      wm.getWindows().forEach(e => wm.getWindow(e.id)?.close())
-      setTimeout(() => {
-        applySnapshot(wins)
-      }, .3e3)
+    const user = USER(usrIndx);
+
+    const targetStatus = user.workSpaces[nowWorkSpace]?.status || [];
+
+    const legacyStatus = user.windowsStatus;
+
+    const statusToLoad = (legacyStatus && legacyStatus.length > 0) ? legacyStatus : targetStatus;
+
+    if (user.workSpaces.length < 0) {
+      setWorkSpaceStatus(prev => {
+        const _ = cloneDeep(prev);
+        const u = _.userList[usrIndx];
+        if (!u.workSpaces) u.workSpaces = newEmptyAccount.workSpaces
+        return _;
+      });
     }
-  }, [workSpaceStatus.userList[usrIndx].setting.lang]);
+
+    if (legacyStatus && legacyStatus.length > 0) {
+      setWorkSpaceStatus(prev => {
+        const _ = cloneDeep(prev);
+        const u = _.userList[usrIndx];
+        u.workSpaces[0].status = legacyStatus;
+        u.windowsStatus = undefined;
+        return _;
+      });
+    }
+
+
+    if (statusToLoad.length > 0) {
+      setTimeout(() => {
+        applySnapshot(statusToLoad);
+        setWindowsList(wm.getWindows());
+      }, 500);
+    }
+  }, [ready]);
+
+  // #endregion
+
 
   /* 關是窗前先問你個問題 */
   useEffect(() => {
@@ -6019,7 +7329,10 @@ const Desktop = () => {
     return () => {
       window.removeEventListener('beforeunload', awa)
     }
-  }, [])
+  }, [saveWinStatus])
+
+
+  // #region 視窗管理相關
 
   /* 工作列更新 */
   useEffect(() => {
@@ -6047,8 +7360,9 @@ const Desktop = () => {
         wm.removeEventListener("idupdate", update)
       }
     }
-  })
+  }, [])
 
+  /* fucking *SnapPreview* */
   useEffect(() => {
     const wm = wmRef.current
     if (!wm) return;
@@ -6074,6 +7388,7 @@ const Desktop = () => {
     }
   }, [])
 
+  /* 欸 snap 的他媽的視覺效果 幹 */
   useEffect(() => {
     const wm = wmRef.current
     const snEle = snapElementRef.current
@@ -6101,47 +7416,39 @@ const Desktop = () => {
     }
   }, [snap])
 
+  // #endregion
+
   /* 手動存工作區狀態 啊他會自動幫你存 放心 */
   useEffect(() => {
-    const wm = wmRef.current
-    let isPress = false
+    let isPress = false;
 
-    if (!wm) return;
-
-    const intr = setInterval(saveWinStatus, 300e3)
+    const intr = setInterval(saveWinStatus, 300e3);
 
     const event = (e: KeyboardEvent) => {
       if (isPress) return;
       if (e.ctrlKey && (e.code === "KeyS")) {
-        isPress = true
-        if (!wm) return;
+        isPress = true;
+        if (!wmRef.current) return;
         e.preventDefault();
-        saveWinStatus()
+        saveWinStatus();
       }
-    }
+    };
+
     const up = () => {
-      isPress = false
-    }
+      isPress = false;
+    };
 
-    document.addEventListener("keydown", event)
-    document.addEventListener("keyup", up)
+    document.addEventListener("keydown", event);
+    document.addEventListener("keyup", up);
+
     return () => {
-      document.removeEventListener("keydown", event)
-      document.removeEventListener("keyup", up)
-      clearInterval(intr)
-    }
-  }, [])
+      document.removeEventListener("keydown", event);
+      document.removeEventListener("keyup", up);
+      clearInterval(intr);
+    };
+  }, [saveWinStatus]);
 
-  /* TmpList的更新 */
-  useEffect(() => {
-    const winID = "tmp-list"
-
-    if (wmRef.current?.hasWindowID(winID)) {
-      wmRef.current.updateWindow(winID, {
-        children: <windowsType.tmpList />
-      })
-    }
-  }, [workSpaceStatus.userList[usrIndx].saves.tmpList])
+  // #region 沒有拖只有放
 
   /* 全局的拖放 */
   useEffect(() => {
@@ -6154,12 +7461,20 @@ const Desktop = () => {
       const item = e.dataTransfer.items[0]
 
       if (itemdata) {
+        StopEvent(e)
         const item: e621Type.DragItemType.defaul = JSON.parse(itemdata)
         const { data, type } = item
 
-        const position = {
-          left: e.clientX - 400,
-          top: e.clientY - 300,
+        const scale = 100 / USER(usrIndx).setting.appearance.scale;
+
+        const position: {
+          left: number;
+          top: number;
+          anchor: WindowAnchor;
+        } = {
+          left: scale * e.clientX,
+          top: scale * e.clientY,
+          anchor: "center-center",
         }
 
         switch (type) {
@@ -6172,7 +7487,7 @@ const Desktop = () => {
                   status: "success",
                   fetchedPost: data
                 }
-              }, position)
+              }, position, true)
             break;
           };
           case "postId": {
@@ -6183,7 +7498,7 @@ const Desktop = () => {
                   currentId: data,
                   status: "loading",
                 }
-              }, position)
+              }, position, true)
             break;
           };
           case "pool": {
@@ -6191,7 +7506,7 @@ const Desktop = () => {
               {
                 type: "pool",
                 data
-              }, position)
+              }, position, true)
             break;
           }
           case "poolId": {
@@ -6203,7 +7518,7 @@ const Desktop = () => {
                   nowPage: 1,
                   pageCache: {},
                 }
-              }, position)
+              }, position, true)
             break;
           }
           case "postSearch": {
@@ -6211,7 +7526,7 @@ const Desktop = () => {
               {
                 type: "postSearch",
                 data
-              }, position)
+              }, position, true)
             break;
           };
           case "tag": {
@@ -6224,7 +7539,7 @@ const Desktop = () => {
                     pageCache: [],
                     searchTags: [data.tag],
                   }
-                }, position)
+                }, position, true)
             }
             break;
           };
@@ -6233,14 +7548,22 @@ const Desktop = () => {
               {
                 type: "viewer",
                 data: data
-              }, position)
+              }, position, true)
             break;
           };
           case "temp": {
             createWindow(wmRef,
               {
                 type: "tmp",
-              }, position)
+              }, position, true)
+            break;
+          };
+          case "setting": {
+            createWindow(wmRef,
+              {
+                type: "setting",
+                data
+              }, position, true)
             break;
           };
         };
@@ -6274,22 +7597,7 @@ const Desktop = () => {
     };
   }, [])
 
-  /* AppSetting的更新 */
-  useEffect(() => {
-    const winID = "app-setting"
-
-    if (wmRef.current?.hasWindowID(winID)) {
-      wmRef.current.updateWindow(winID, {
-        children: <windowsType.setting />
-      })
-    }
-  },
-    [
-      workSpaceStatus.userList[usrIndx].setting,
-      workSpaceStatus.userList[usrIndx].history,
-      workSpaceStatus.userList[usrIndx].saveInfo.user,
-    ]
-  )
+  // #endregion
 
   type menuButtonType = [string, () => void][]
 
@@ -6316,342 +7624,640 @@ const Desktop = () => {
     ]
   }
 
-  /* 寫這坨注解的時候 就是爲了找這個 */
-  /* 這個是他媽的 初始化動畫 */
-  useEffect(() => {
-    (async () => {
-      await functions.timeSleep(.5e3)
-      document.getElementById(style["Desktop"])?.classList.remove(style["hide"])
-    })()
-  }, [])
-
   return (
-    <div id={style["Desktop"]} className={style["hide"]} style={{ zoom: `${workSpaceStatus.userList[usrIndx].setting.appearance.scale}%` }}>
+    <div
+      id={style["Desktop"]}
 
-      <Menu />
+      className={[
+        !ready && style["hide"],
+        workSpaceEditor && style["workSpaceEditor"]
+      ].join(" ")}
 
-      <div className={style["Buttons"]}>
-        <div className={[style["MainArea"], startMenu ? style["startMenu"] : ""].join(" ")}>
+      style={{
+        zoom: `${USER(usrIndx).setting.appearance.scale}%`
+      }}
+    >
+      <div className={style["workSpaceMgr"]}>
+        <div className={style["menu"]}>
+          {USER(usrIndx).workSpaces.map((e, i) => (
+            <div className={[style["workSpace"], nowWorkSpace === i ? style["activ"] : ""].join(" ")} key={i}>
+              <div
+                className={style["top"]}
+              >
+                <input
+                  type="text"
+                  value={e.name}
+                  placeholder={t("workSpaceManager.name.placeholder", usrIndx)}
 
-          <div className={style["StartMenu"]}>
-            <div className={style["Side"]}>
-              <div>
+                  onChange={(el) => setWorkSpaceStatus(e => {
+                    const _ = cloneDeep(e)
+
+                    const usr = _.userList[usrIndx]
+                    usr.workSpaces[i].name = el.currentTarget.value
+
+                    return _
+                  })}
+
+                  onKeyDown={inputKeyEvent}
+
+                  style={{
+                    color: e.setting.color
+                  }}
+                />
+                {USER(usrIndx).workSpaces.length > 1 ?
+                  <button
+                    onClick={() => handleDeleteWorkspace(i)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px"><path d="m291-240-51-51 189-189-189-189 51-51 189 189 189-189 51 51-189 189 189 189-51 51-189-189-189 189Z" /></svg>
+                  </button>
+                  :
+                  <div />
+                }
+              </div>
+              <button
+                className={style["desktopPreview"]}
+                onClick={() => handleSwitchWorkspace(i)}
+                style={{
+                  aspectRatio: `${resolution[0]} / ${resolution[1]}`,
+                  borderColor: e.setting.color
+                }}
+              >
+                <div className={style["indexNumber"]}><span style={{ color: e.setting.color }}>{`# ${i}`}</span></div>
+                <div className={style["backdrop"]} />
+                <div className={style["windows"]} >
+                  {(i === nowWorkSpace && liveSnapshotRef.current?.index === nowWorkSpace
+                    ? liveSnapshotRef.current.snapshot
+                    : e.status
+                  ).filter(e => !e.isMinimized).map((win, i) => <div
+                    className={style["win"]}
+                    key={i}
+                    style={{
+                      zIndex: win.zIndex
+                    }}
+                  >
+                    <div
+                      className={style["position"]}
+                      style={{
+                        borderColor: color.bright(e.setting.color, .8),
+                        backgroundColor: color.bright(e.setting.color, .3) + "80",
+                        top: win.rect.top + "%",
+                        left: win.rect.left + "%",
+                        width: win.rect.width + "%",
+                        height: win.rect.height + "%",
+                      }}
+                    />
+                  </div>)}
+                </div>
+                <Background bg={e.setting.wallpaper} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => {
+              const user = USER(usrIndx);
+              const newIndex = user.workSpaces.length;
+
+              const wm = wmRef.current;
+              const currentSnapshot = wm ? wm.captureSnapshot() : [];
+
+              wm?.getWindows().forEach(winInfo => wm.destroyWindow(winInfo.id));
+
+              setNowWorkSpace(newIndex);
+
+              setWorkSpaceStatus(e => {
+                const _ = cloneDeep(e);
+                const usr = _.userList[usrIndx];
+
+                if (usr.workSpaces[nowWorkSpace]) {
+                  usr.workSpaces[nowWorkSpace].status = currentSnapshot;
+                }
+
+                usr.workSpaces.push({
+                  name: "Desktop",
+                  status: [],
+                  setting: {
+                    wallpaper: usr.workSpaces[usr.nowWorkSpace].setting.wallpaper,
+                    color: usr.workSpaces[usr.nowWorkSpace].setting.color,
+                  }
+                });
+
+                usr.nowWorkSpace = newIndex;
+                return _;
+              });
+            }}
+            className={style["add"]}
+          >{t("workSpaceManager.newDesktop", usrIndx)}</button>
+        </div>
+        <div></div>
+      </div>
+
+      <div className={style["textArea"]}>
+        {(() => {
+          const ws = USER(usrIndx).workSpaces[nowWorkSpace]
+          return <>
+            <div className={style["name"]}>
+              <input
+                key={nowWorkSpace}
+                type="text"
+                value={ws.name}
+                placeholder={t("workSpaceManager.name.placeholder", usrIndx)}
+
+                onChange={(el) => setWorkSpaceStatus(e => {
+                  const _ = cloneDeep(e)
+
+                  const usr = _.userList[usrIndx]
+                  usr.workSpaces[nowWorkSpace].name = el.currentTarget.value
+
+                  return _
+                })}
+
+                onKeyDown={inputKeyEvent}
+
+                style={{
+                  color: ws.setting.color
+                }}
+              />
+            </div>
+            <div className={style["note"]}>
+              <input
+                key={nowWorkSpace}
+                type="text"
+                defaultValue={ws.note}
+                placeholder={t("workSpaceManager.note.placeholder", usrIndx)}
+
+                onChange={(el) => setWorkSpaceStatus(e => {
+                  const _ = cloneDeep(e)
+
+                  const usr = _.userList[usrIndx]
+                  usr.workSpaces[nowWorkSpace].note = el.currentTarget.value
+
+                  return _
+                })}
+
+                onKeyDown={inputKeyEvent}
+
+                style={{
+                  color: ws.setting.color
+                }}
+              />
+            </div>
+          </>
+        })()}
+      </div>
+
+      <div
+        className={style["mainArea"]}
+        onClick={e => e.isTrusted ? setWorkSpaceEditor(false) : ""}
+      >
+        <Menu />
+
+        <div className={style["wsEditor"]}>
+          <div className={style["backdrop"]} />
+          <div className={style["index"]}>
+            <span>{"# " + nowWorkSpace}</span>
+          </div>
+        </div>
+
+        <div className={style["Buttons"]}>
+          <div className={[style["MainArea"], startMenu ? style["startMenu"] : ""].join(" ")}>
+
+            <div className={style["StartMenu"]}
+              onDrop={e => { setStartMenu(false); }}
+            >
+
+              {USER(usrIndx).setting.appearance.KIASTALA && <div className={style["KIASTALA"]}>
+                <div>
+                  <div className={style["LINIE"]} />
+                </div>
+
+                <div>
+                  <div className={style["CORE"]} />
+                </div>
+
+                {
+                  [
+                    /* Size , Duration , Width , Blur , Opacity */
+                    [100, .3, 10, 1, .8],
+                    [200, .5, 10, 5, .8],
+                    [300, 1, 10, 8, .5],
+                    [500, 2, 15, 10, .25],
+                    [700, 5, 20, 15, .1],
+                    [1000, 10, 30, 20, .1],
+                    [1600, 20, 40, 5, .1],
+                    [2000, 30, 50, 10, .1],
+                    [2500, 50, 60, 15, .1],
+                  ].map((e, i) => <div>
+                    <div
+                      key={i}
+                      className={style["CER"]}
+                      style={{
+                        width: e[0] + "px",
+                        height: e[0] + "px",
+                        filter: `blur(${e[3]}px)`,
+                        opacity: e[4],
+                        transform: i % 2 === 0 ? "translate(-50%, -50%)" : "translate(-50%, -50%) rotateY(180deg)"
+                      }}
+                    >
+                      <div
+                        key={i}
+                        style={{
+                          animationDuration: e[1] + "s",
+                        }}
+                      >
+                        <div style={{
+                          borderWidth: e[2] + "px",
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+                  )
+                }
+              </div>}
+
+              <div className={style["Side"]}>
+                <div>
+                  {
+                    ([
+                      [
+                        t("startMenuSide.logout", usrIndx),
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z" /></svg>,
+                        () => {
+                          saveWinStatus(true)
+                        }
+                      ],
+                      [
+                        t("startMenuSide.appSetting", usrIndx),
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M433-80q-27 0-46.5-18T363-142l-9-66q-13-5-24.5-12T307-235l-62 26q-25 11-50 2t-39-32l-47-82q-14-23-8-49t27-43l53-40q-1-7-1-13.5v-27q0-6.5 1-13.5l-53-40q-21-17-27-43t8-49l47-82q14-23 39-32t50 2l62 26q11-8 23-15t24-12l9-66q4-26 23.5-44t46.5-18h94q27 0 46.5 18t23.5 44l9 66q13 5 24.5 12t22.5 15l62-26q25-11 50-2t39 32l47 82q14 23 8 49t-27 43l-53 40q1 7 1 13.5v27q0 6.5-2 13.5l53 40q21 17 27 43t-8 49l-48 82q-14 23-39 32t-50-2l-60-26q-11 8-23 15t-24 12l-9 66q-4 26-23.5 44T527-80h-94Zm7-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" /></svg>,
+                        () => createWindow(wmRef, {
+                          type: "setting",
+                          data: "NONE"
+                        })
+                      ],
+                      [
+                        t("runBox", usrIndx),
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="m321-80-71-71 329-329-329-329 71-71 400 400L321-80Z" /></svg>,
+                        () => setRunBox(true),
+                        true,
+                      ],
+                      [
+                        t("workSpaceManager", usrIndx),
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M640-160v-360H160v360h480Zm80-200v-80h80v-360H320v200h-80v-200q0-33 23.5-56.5T320-880h480q33 0 56.5 23.5T880-800v360q0 33-23.5 56.5T800-360h-80ZM160-80q-33 0-56.5-23.5T80-160v-360q0-33 23.5-56.5T160-600h480q33 0 56.5 23.5T720-520v360q0 33-23.5 56.5T640-80H160Zm400-603ZM400-340Z" /></svg>,
+                        () => setWorkSpaceEditor(true),
+                      ],
+                      [
+                        t("startMenuSide.console", usrIndx),
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm187-200-76-76q-12-12-11.5-28t12.5-28q12-11 28-11.5t28 11.5l104 104q12 12 12 28t-12 28L328-308q-11 11-27.5 11.5T272-308q-11-11-11-28t11-28l75-76Zm173 160q-17 0-28.5-11.5T480-320q0-17 11.5-28.5T520-360h160q17 0 28.5 11.5T720-320q0 17-11.5 28.5T680-280H520Z" /></svg>,
+                        () => Kiasole.toggle(),
+                      ],
+                    ] as ([string, JSX.Element, () => {}] | [string, JSX.Element, () => {}, boolean])[]).map((e, i) => <button key={i} hover-tips={e[0]} onClick={(ev) => { ev.stopPropagation(); e[2](); setStartMenu(false) }} style={{ marginTop: e[3] ? "auto" : "" }}>{e[1]}</button>)
+                  }
+                </div>
+              </div>
+
+              <div className={style["Buttons"]}>
                 {
                   ([
                     [
-                      t("startMenuSide.logout", usrIndx),
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z" /></svg>,
+                      t("windowsType.postSearch", usrIndx),
+                      <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
                       () => {
-                        saveWinStatus()
-                        setWorkSpaceStatus(prev => {
-                          const _ = cloneDeep(prev)
-                          _.autoLogin = false
-                          _.rememberPassword = ""
-                          return _
+                        createWindow(wmRef, {
+                          type: "postSearch",
+                          data: {
+                            nowPage: 1,
+                            pageCache: [],
+                            searchTags: [],
+                          }
                         })
-                        setIsLogin(false)
-                      }
-                    ],
-                    [
-                      t("startMenuSide.appSetting", usrIndx),
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M433-80q-27 0-46.5-18T363-142l-9-66q-13-5-24.5-12T307-235l-62 26q-25 11-50 2t-39-32l-47-82q-14-23-8-49t27-43l53-40q-1-7-1-13.5v-27q0-6.5 1-13.5l-53-40q-21-17-27-43t8-49l47-82q14-23 39-32t50 2l62 26q11-8 23-15t24-12l9-66q4-26 23.5-44t46.5-18h94q27 0 46.5 18t23.5 44l9 66q13 5 24.5 12t22.5 15l62-26q25-11 50-2t39 32l47 82q14 23 8 49t-27 43l-53 40q1 7 1 13.5v27q0 6.5-2 13.5l53 40q21 17 27 43t-8 49l-48 82q-14 23-39 32t-50-2l-60-26q-11 8-23 15t-24 12l-9 66q-4 26-23.5 44T527-80h-94Zm7-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" /></svg>,
-                      () => createWindow(wmRef, {
-                        type: "setting",
-                        data: "NONE"
-                      })
-                    ],
-                    [
-                      t("startMenuSide.console", usrIndx),
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H160v400Zm187-200-76-76q-12-12-11.5-28t12.5-28q12-11 28-11.5t28 11.5l104 104q12 12 12 28t-12 28L328-308q-11 11-27.5 11.5T272-308q-11-11-11-28t11-28l75-76Zm173 160q-17 0-28.5-11.5T480-320q0-17 11.5-28.5T520-360h160q17 0 28.5 11.5T720-320q0 17-11.5 28.5T680-280H520Z" /></svg>,
-                      () => Kiasole.toggle(),
-                      true,
-                    ],
-                  ] as ([string, JSX.Element, () => {}] | [string, JSX.Element, () => {}, boolean])[]).map((e, i) => <button key={i} hover-tips={e[0]} onClick={() => { e[2](); setStartMenu(false) }} style={{ marginTop: e[3] ? "auto" : "" }}>{e[1]}</button>)
-                }
-              </div>
-            </div>
-
-            <div className={style["Buttons"]}>
-              {
-                ([
-                  [
-                    t("windowsType.postSearch", usrIndx),
-                    <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
-                    () => {
-                      createWindow(wmRef, {
+                      },
+                      {
                         type: "postSearch",
                         data: {
                           nowPage: 1,
                           pageCache: [],
                           searchTags: [],
                         }
-                      })
-                    },
-                    {
-                      type: "postSearch",
-                      data: {
-                        nowPage: 1,
-                        pageCache: [],
-                        searchTags: [],
                       }
-                    }
-                  ],
-                  [
-                    t("windowsType.postGetByID", usrIndx),
-                    <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
-                    () => {
-                      createWindow(wmRef, {
-                        type: "postGetByID",
-                        data: {
-                          currentId: 5613429,
-                          status: "loading",
-                        }
-                      })
-                    },
-                    {
-                      type: "postId",
-                      data: 5613429,
-                    }
-                  ],
-                  [
-                    t("windowsType.pool", usrIndx),
-                    <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
-                    () => {
-                      createWindow(wmRef, {
-                        type: "pool",
-                        data: {
-                          poolId: 44182,
-                          nowPage: 1,
-                          pageCache: {},
-                        }
-                      })
-                    },
-                    {
-                      type: "poolId",
-                      data: 44182
-                    }
-                  ],
-                  [
-                    t("windowsType.tmpList", usrIndx),
-                    <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
-                    () => {
-                      createWindow(wmRef, {
-                        type: "tmp"
-                      })
-                    },
-                    {
-                      type: "temp",
-                    }
-                  ],
-                ] as ([string, JSX.Element, () => {}, e621Type.DragItemType.defaul] | [string, JSX.Element, () => {}])[]).map((e, i) => <div key={i}
-                  style={{
-                    transitionDelay: startMenu ? `${(i * .05) + .2}s` : ""
-                  }}
-                  draggable={e.length === 4}
-                  onDragStart={ev => { e[3] ? dragItem(ev, e[3]) : ""; }}
-                  onDrag={() => setStartMenu(false)}
-                >
-                  <button onClick={() => {
-                    e[2]()
-                    setStartMenu(false)
-                  }}>
-                    <div className={style["icon"]}>{e[1]}</div>
-                    <div className={style["name"]}>
-                      <span>
-                        {e[0]}
-                      </span>
-                    </div>
-                  </button>
-                </div>
-                )
-              }
-            </div>
-          </div>
+                    ],
+                    [
+                      t("windowsType.postGetByID", usrIndx),
+                      <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
+                      () => {
+                        createWindow(wmRef, {
+                          type: "postGetByID",
+                          data: {
+                            currentId: 5613429,
+                            status: "loading",
+                          }
+                        })
+                      },
+                      {
+                        type: "postId",
+                        data: 5613429,
+                      }
+                    ],
+                    [
+                      t("windowsType.pool", usrIndx),
+                      <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
+                      () => {
+                        createWindow(wmRef, {
+                          type: "pool",
+                          data: {
+                            poolId: 44182,
+                            nowPage: 1,
+                            pageCache: {},
+                          }
+                        })
+                      },
+                      {
+                        type: "poolId",
+                        data: 44182
+                      }
+                    ],
+                    [
+                      t("windowsType.tmpList", usrIndx),
+                      <svg xmlns="http://www.w3.org/2000/svg" height="50px" viewBox="0 -960 960 960" width="50px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>,
+                      () => {
+                        createWindow(wmRef, {
+                          type: "tmp"
+                        })
+                      },
+                      {
+                        type: "temp",
+                      }
+                    ],
+                  ] as ([string, JSX.Element, () => {}, e621Type.DragItemType.defaul] | [string, JSX.Element, () => {}])[]).map((btn, i) => <div
+                    key={i}
+                    style={{
+                      transitionDelay: startMenu ? `${(i * .05) + .2}s` : ""
+                    }}
+                  >
+                    <button
+                      onClick={() => {
+                        btn[2]()
+                        setStartMenu(false)
+                      }}
 
-          <div className={style["SnapPreview"]}>
-            <div
-              ref={snapElementRef}
-              style={(() => {
-                switch (snap) {
+                      draggable={btn.length === 4}
+                      onDragStart={ev => { btn[3] ? dragItem(ev, btn[3]) : ""; }}
+                      onDrag={() => setStartMenu(false)}
 
-                  case "top": return {
-                    width: "100%",
-                    height: "100%",
-                    left: "0",
-                    top: "0",
-                  }
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        clearTimeout(dragTimeOut.current);
 
-                  case "left": return {
-                    width: "50%",
-                    height: "100%",
-                    left: "0",
-                    top: "0",
-                  }
+                        dragTimeOut.current = setTimeout(() => {
+                          setStartMenu(false);
+                          btn[2]();
+                        }, 250);
+                      }}
 
-                  case "right": return {
-                    width: "50%",
-                    height: "100%",
-                    left: "50%",
-                    top: "0",
-                  }
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        clearTimeout(dragTimeOut.current);
+                      }}
 
-                  case "top-left": return {
-                    width: "50%",
-                    height: "50%",
-                    left: "0",
-                    top: "0",
-                  }
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                      }}
 
-                  case "top-right": return {
-                    width: "50%",
-                    height: "50%",
-                    left: "50%",
-                    top: "0",
-                  }
-
-                  case "bottom-left": return {
-                    width: "50%",
-                    height: "50%",
-                    left: "0",
-                    top: "50%",
-                  }
-
-                  case "bottom-right": return {
-                    width: "50%",
-                    height: "50%",
-                    left: "50%",
-                    top: "50%",
-                  }
-
-                  case null: return {
-                    opacity: 0
-                  }
-
+                    >
+                      <div className={style["icon"]}>{btn[1]}</div>
+                      <div className={style["name"]}>
+                        <span>
+                          {btn[0]}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                  )
                 }
-              })()}
-            />
-          </div>
-
-          <div className={style["Windows"]} ref={containerRef}></div>
-
-          <div className={style["CancelDrag"]}>
-            <div className={style["main"]} ref={dragCancelAreaRef}>
-              <div className={style["bg"]} />
-
-              <div className={style["btn"]}>
-                <div
-                  className={style["area"]}
-                  onDragEnter={e => { e.currentTarget.classList.add(style["activ"]) }}
-                  onDragLeave={e => { e.currentTarget.classList.remove(style["activ"]) }}
-                  onDrop={e => { e.currentTarget.classList.remove(style["activ"]); StopEvent(e) }}
-                >
-                  <span>{t("Desktop.drag.Cancel", usrIndx)}</span>
-                </div>
               </div>
 
             </div>
-          </div>
 
-        </div>
-        <div className={style["Bar"]}>
-          <div className={style["Left"]}>
-            <Button onDrop={e => { e.preventDefault(); e.stopPropagation(); }} status={startMenu ? "isOpen" : "icon"} title={t("taskBar.startMenu", usrIndx)} onClick={() => setStartMenu(e => !e)}>
-              <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M450-450H200v-60h250v-250h60v250h250v60H510v250h-60v-250Z" /></svg>
-            </Button>
-          </div>
-          <div className={style["List"]} overflow-bar-none="">
-            {windowsList.map((win) => {
-              const thisWindow = wmRef.current?.getWindow(win.id);
-              return <Button
-                key={win.id}
-                status={thisWindow?.isMinimized ? "mini" : thisWindow?.isFocused ? "focus" : "blur"}
-                title={win.title}
+            {RunboxElement}
 
-                onDragEnter={(e) => {
-                  if (!e.dataTransfer) return;
-                  wmRef.current?.bringToFront(win.id)
-                }}
+            <div className={style["SnapPreview"]}>
+              <div
+                ref={snapElementRef}
+                style={(() => {
+                  switch (snap) {
 
-                onMouseEnter={(event) => {
-                  if (!mouseIsPress) return
-                  onClickEvent(event, windowAction(win.id))
-                }}
+                    case "top": return {
+                      width: "100%",
+                      height: "100%",
+                      left: "0",
+                      top: "0",
+                    }
 
-                onMouseDown={() => {
-                  setMouseIsPress(true)
-                }}
+                    case "left": return {
+                      width: "50%",
+                      height: "100%",
+                      left: "0",
+                      top: "0",
+                    }
 
-                onClick={event => {
-                  switch (event?.button) {
-                    case 0: {
-                      if (startMenu) {
-                        setStartMenu(false);
-                        thisWindow?.focus()
-                        return;
-                      }
+                    case "right": return {
+                      width: "50%",
+                      height: "100%",
+                      left: "50%",
+                      top: "0",
+                    }
 
-                      if (thisWindow?.isTop) {
-                        thisWindow?.minimize()
-                      } else {
-                        thisWindow?.focus()
-                      }
+                    case "top-left": return {
+                      width: "50%",
+                      height: "50%",
+                      left: "0",
+                      top: "0",
+                    }
 
-                      return;
-                    };
-                  };
-                }}
+                    case "top-right": return {
+                      width: "50%",
+                      height: "50%",
+                      left: "50%",
+                      top: "0",
+                    }
 
-                onMouseUp={(event) => {
-                  switch (event?.button) {
-                    case 1: {
-                      thisWindow?.close();
-                      setMouseIsPress(false)
-                      MenuAction.closeMenu()
-                      return;
-                    };
+                    case "bottom-left": return {
+                      width: "50%",
+                      height: "50%",
+                      left: "0",
+                      top: "50%",
+                    }
 
-                    case 2: {
-                      onClickEvent(event, windowAction(win.id))
-                      return;
-                    };
-                  };
-                }}
+                    case "bottom-right": return {
+                      width: "50%",
+                      height: "50%",
+                      left: "50%",
+                      top: "50%",
+                    }
 
-                onMouseMove={(event) => {
-                  if (!mouseIsPress) return
-                  event.stopPropagation();
-                  onClickEvent(event, windowAction(win.id))
-                }}
-
-                onContextMenu={e => e.preventDefault()}
-              >
-                {(() => {
-                  const owo = wmRef.current?.getWindow(win.id)
-
-                  switch (owo?.customData?.type) {
-                    case "postSearch":
-                      return <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>
-                    case "post":
-                    case "postGetByID":
-                      return <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M780-120H180q-24.75 0-42.37-17.63Q120-155.25 120-180v-600q0-24.75 17.63-42.38Q155.25-840 180-840h600q24.75 0 42.38 17.62Q840-804.75 840-780v600q0 24.75-17.62 42.37Q804.75-120 780-120Zm-20-143H200v78h560v-78Zm-560-41h560v-78H200v78Zm0-129h560v-327H200v327Zm0 170v78-78Zm0-41v-78 78Zm0-129v-327 327Zm0 51v-51 51Zm0 119v-41 41Z" /></svg>
-                    case "setting":
-                      return <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm15-60h88l14-112q33-8 62.5-25t53.5-41l106 46 40-72-94-69q4-17 6.5-33.5T715-480q0-17-2-33.5t-7-33.5l94-69-40-72-106 46q-23-26-52-43.5T538-708l-14-112h-88l-14 112q-34 7-63.5 24T306-642l-106-46-40 72 94 69q-4 17-6.5 33.5T245-480q0 17 2.5 33.5T254-413l-94 69 40 72 106-46q24 24 53.5 41t62.5 25l14 112Zm44-210q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Zm0-130Z" /></svg>
+                    case null: return {
+                      opacity: 0
+                    }
 
                   }
                 })()}
-              </Button>
-            })}
+              />
+            </div>
 
+            <div className={style["Windows"]} ref={containerRef}></div>
+
+            <div className={style["CancelDrag"]}>
+              <div className={style["main"]} ref={dragCancelAreaRef}>
+                <div className={style["bg"]} />
+
+                <div className={style["btn"]}>
+                  <div
+                    className={style["area"]}
+                    onDragEnter={e => { e.currentTarget.classList.add(style["activ"]) }}
+                    onDragLeave={e => { e.currentTarget.classList.remove(style["activ"]) }}
+                    onDrop={e => { e.currentTarget.classList.remove(style["activ"]); StopEvent(e) }}
+                  >
+                    <span>{t("Desktop.drag.Cancel", usrIndx)}</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
 
           </div>
-          <div className={style["Right"]}>
-            {workSpaceStatus.userList[usrIndx].setting.appearance.clockFormat.map((e, i) => <div>{cnvFormat.clock(clock, e)}</div>)}
+          <div
+            className={style["Bar"]}
+            onDragEnter={e => { e.currentTarget.classList.add(style["activ"]) }}
+            onDragLeave={e => { e.currentTarget.classList.remove(style["activ"]) }}
+            onDrop={e => { e.currentTarget.classList.remove(style["activ"]); StopEvent(e) }}
+          >
+            <div className={style["Left"]}>
+              <Button
+                onDrop={e => { e.preventDefault(); e.stopPropagation(); }}
+                status={startMenu ? "isOpen" : "icon"}
+                title={t("taskBar.startMenu", usrIndx)}
+                onClick={() => setStartMenu(e => {
+                  if (!e) setRunBox(false);
+                  return !e
+                })}
+
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  clearTimeout(dragTimeOut.current);
+
+                  dragTimeOut.current = setTimeout(() => {
+                    setStartMenu(e => {
+                      if (!e) setRunBox(false);
+                      return !e
+                    });
+                  }, 250);
+                }}
+
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  clearTimeout(dragTimeOut.current);
+                }}
+
+                onDragOver={(e) => {
+                  e.preventDefault();
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M450-450H200v-60h250v-250h60v250h250v60H510v250h-60v-250Z" /></svg>
+              </Button>
+            </div>
+            <div className={style["List"]} overflow-bar-none="">
+              {windowsList.map((win) => {
+                const thisWindow = wmRef.current?.getWindow(win.id);
+                return <Button
+                  key={win.id}
+                  status={thisWindow?.isMinimized ? "mini" : thisWindow?.isFocused ? "focus" : "blur"}
+                  title={win.title}
+
+                  onDragEnter={(e) => {
+                    if (!e.dataTransfer) return;
+                    wmRef.current?.bringToFront(win.id)
+                  }}
+
+                  onMouseEnter={(event) => {
+                    if (!mouseIsPress) return
+                    onClickEvent(event, windowAction(win.id))
+                  }}
+
+                  onMouseDown={() => {
+                    setMouseIsPress(true)
+                  }}
+
+                  onClick={event => {
+                    switch (event?.button) {
+                      case 0: {
+                        if (startMenu) {
+                          setStartMenu(false);
+                          thisWindow?.focus()
+                          return;
+                        }
+
+                        if (thisWindow?.isTop) {
+                          thisWindow?.minimize()
+                        } else {
+                          thisWindow?.focus()
+                        }
+
+                        return;
+                      };
+                    };
+                  }}
+
+                  onMouseUp={(event) => {
+                    switch (event?.button) {
+                      case 1: {
+                        thisWindow?.close();
+                        setMouseIsPress(false)
+                        MenuAction.closeMenu()
+                        return;
+                      };
+
+                      case 2: {
+                        onClickEvent(event, windowAction(win.id))
+                        return;
+                      };
+                    };
+                  }}
+
+                  onMouseMove={(event) => {
+                    if (!mouseIsPress) return
+                    event.stopPropagation();
+                    onClickEvent(event, windowAction(win.id))
+                  }}
+
+                  onContextMenu={e => e.preventDefault()}
+                >
+                  {(() => {
+                    const owo = wmRef.current?.getWindow(win.id)
+
+                    switch (owo?.customData?.type) {
+                      case "postSearch":
+                        return <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z" /></svg>
+                      case "post":
+                      case "postGetByID":
+                        return <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M780-120H180q-24.75 0-42.37-17.63Q120-155.25 120-180v-600q0-24.75 17.63-42.38Q155.25-840 180-840h600q24.75 0 42.38 17.62Q840-804.75 840-780v600q0 24.75-17.62 42.37Q804.75-120 780-120Zm-20-143H200v78h560v-78Zm-560-41h560v-78H200v78Zm0-129h560v-327H200v327Zm0 170v78-78Zm0-41v-78 78Zm0-129v-327 327Zm0 51v-51 51Zm0 119v-41 41Z" /></svg>
+                      case "setting":
+                        return <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px"><path d="M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm15-60h88l14-112q33-8 62.5-25t53.5-41l106 46 40-72-94-69q4-17 6.5-33.5T715-480q0-17-2-33.5t-7-33.5l94-69-40-72-106 46q-23-26-52-43.5T538-708l-14-112h-88l-14 112q-34 7-63.5 24T306-642l-106-46-40 72 94 69q-4 17-6.5 33.5T245-480q0 17 2.5 33.5T254-413l-94 69 40 72 106-46q24 24 53.5 41t62.5 25l14 112Zm44-210q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Zm0-130Z" /></svg>
+
+                    }
+                  })()}
+                </Button>
+              })}
+
+
+            </div>
+            <div className={style["Right"]}>
+              {USER(usrIndx).setting.appearance.clockFormat.map((e, i) => <div>{cnvFormat.clock(clock, e)}</div>)}
+            </div>
           </div>
         </div>
+
+        <Background bg={background} />
       </div>
 
       <Background bg={background} />
-
     </div >
   )
 }
@@ -6804,35 +8410,27 @@ const Login = () => {
         {
           workSpaceStatus.userList.map((_user, i) => {
             const { user, id } = _user.saveInfo;
+            const clr = _user.workSpaces[_user.nowWorkSpace].setting.color
 
             return <button
               key={`${i}_${id}`}
               className={[
                 style["User"],
               ].join(" ")}
-              style={{ outlineColor: i === selectUser ? _user.setting.appearance.color + "50" : "" }}
+              style={{ outlineColor: i === selectUser ? clr + "50" : "" }}
               onClick={() => { setSelectUser(i); setNewAccount(false); }}
             >
               <div className={style["Main"]}>
 
-                <div
-                  className={style["avatar"]}
-                  style={{
-                    backgroundImage: `url(${user.avatar.url})`,
-                    backgroundPositionX: `${user.avatar.positionX ?? 50}%`,
-                    backgroundPositionY: `${user.avatar.positionY ?? 50}%`,
-                    backgroundSize: user.avatar.scale ? user.avatar.scale + "%" : "cover",
-                    backgroundRepeat: "no-repeat"
-                  }}
-                />
+                <div className={style["avatar"]}><Background bg={user.avatar} /></div>
 
                 <div className={style["name"]} >
-                  <span style={{ color: _user.setting.appearance.color }}>{user.name}</span>
+                  <span style={{ color: clr }}>{user.name}</span>
                 </div>
 
               </div>
 
-              <div className={style["Background"]} style={{ backgroundColor: _user.setting.appearance.color }} />
+              <div className={style["Background"]} style={{ backgroundColor: clr }} />
             </button>
           })
         }
@@ -6849,16 +8447,8 @@ const Login = () => {
         >
           <div className={style["Main"]}>
 
-            <div
-              className={style["avatar"]}
-              style={{
-                backgroundImage: `url(${EmptyUser.saveInfo.user.avatar.url})`,
-                backgroundPositionX: `${EmptyUser.saveInfo.user.avatar.positionX ?? 50}%`,
-                backgroundPositionY: `${EmptyUser.saveInfo.user.avatar.positionY ?? 50}%`,
-                backgroundSize: EmptyUser.saveInfo.user.avatar.scale ? EmptyUser.saveInfo.user.avatar.scale + "%" : "cover",
-                backgroundRepeat: "no-repeat"
-              }}
-            />
+            <div className={style["avatar"]}><Background bg={EmptyUser.saveInfo.user.avatar} /></div>
+
 
             <div className={style["name"]} >
               <span style={{ color: EmptyUser.setting.appearance.color }}>{EmptyUser.saveInfo.user.name}</span>
@@ -6878,15 +8468,8 @@ const Login = () => {
           const user = saveInfo.user
           const { avatar, name } = user
           return <div key={saveInfo.id} className={selectUser === i ? style["show"] : (selectUser > i ? style["up"] : style["down"])}>
-            <div
-              className={style["avatar"]}
-              style={{
-                backgroundImage: `url(${avatar.url ?? ""})`,
-                backgroundPositionX: `${avatar.positionX ?? 50}%`,
-                backgroundPositionY: `${avatar.positionY ?? 50}%`,
-                backgroundSize: avatar.scale ? avatar.scale + "%" : "cover",
-                backgroundRepeat: "no-repeat"
-              }} />
+
+            <div className={style["avatar"]}><Background bg={avatar} /></div>
 
             <div className={style["name"]}>{name}</div>
 
@@ -6991,11 +8574,7 @@ const Login = () => {
         selectUser === i ? style["show"] : (selectUser > i ? style["up"] : style["down"])
         ].join(" ")}
       >
-        <Background bg={(() => {
-          const { setting, saves } = user
-          const wallpaper = setting.appearance.wallpaper
-          return typeof wallpaper === "number" ? saves.wallpapers[wallpaper] : wallpaper
-        })()} />
+        <Background bg={user.workSpaces[user.nowWorkSpace].setting.wallpaper} />
       </div>)}
 
       <div
@@ -7021,14 +8600,40 @@ export default function () {
   [isLogin, setIsLogin] = useState<boolean>(false);
 
   useEffect(() => {
+    _app.hideColorPanel(true)
     setWorkSpaceStatus(e => {
       const _ = cloneDeep(e)
 
       const empt = EmptyAccount({ id: "", name: "" })
-      _.userList = _.userList.map(e => merge({}, empt, e))
+      _.userList = _.userList.map(user => {
+        const merged = merge({}, empt, user) as workSpaceType.User
+
+        if (!merged.workSpaces || merged.workSpaces.length === 0) {
+          const color = merged.setting.appearance.color
+          const wallpaper = merged.setting.appearance.wallpaper
+          merged.workSpaces = [
+            {
+              ...cloneDeep(newEmptyAccount.workSpaces[0]),
+              setting: { color, wallpaper }
+            }
+          ]
+          merged.nowWorkSpace = 0
+        }
+
+        if (merged.windowsStatus && merged.windowsStatus.length > 0) {
+          merged.workSpaces[0].status = merged.windowsStatus
+          merged.windowsStatus = []
+        }
+
+        return merged
+      })
 
       return _
     })
+
+    return () => {
+      _app.hideColorPanel(false)
+    }
   }, [])
 
   return (

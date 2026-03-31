@@ -127,6 +127,8 @@
 
           button,
           div {
+            outline: none;
+            border: none;
             font-size: 13px;
             border: none;
             border-left: 2px solid #0000;
@@ -204,8 +206,9 @@
         [kiase-sty] {
 
           &:is(button[non-pad]),
+          &:is(button[svg-icon]),
           &:is(button) {
-            background-color: Color(.2, .5);
+            background-color: Color(.2);
             border: none;
             font-size: 15px;
             padding: 8px 40px;
@@ -214,11 +217,20 @@
               fill: Color();
             }
 
+            &.activ,
+            &[btn-activ="true"] {
+              background-color: Color(.5);
+            }
+
             &:hover,
             &:active {
-              transition: none;
               background-color: Color();
               color: #000 !important;
+
+              *,
+              & {
+                transition: none;
+              }
 
               svg {
                 fill: #000;
@@ -228,10 +240,24 @@
             &:active {
               filter: brightness(.5);
             }
+
+            &:disabled {
+              pointer-events: none;
+              background-color: Color(.2);
+              color: Color(.5) !important;
+
+              svg {
+                fill: Color();
+              }
+            }
           }
 
           &:is(button[non-pad]) {
             padding: 0;
+          }
+
+          &:is(button[svg-icon]) {
+            @include FlexCenter2();
           }
 
           &:is(input) {
@@ -258,7 +284,8 @@
         }
 
         [pre-text],
-        [small-txt] {
+        [small-txt],
+        [mid-txt] {
           user-select: text !important;
         }
 
@@ -269,6 +296,20 @@
 
         [small-txt] {
           font-size: 15px;
+        }
+
+        [mid-txt] {
+          font-size: 17px;
+        }
+
+        .PasswordInput {
+          display: inline-flex;
+          align-items: stretch;
+          gap: 5px;
+
+          button {
+            width: 30px;
+          }
         }
 
         .ListEditor {
@@ -308,7 +349,7 @@
             gap: 10px;
 
             .image {
-              aspect-ratio: 16/9;
+              overflow: hidden;
               @include GridFrame();
 
               .dragOverlay {
@@ -374,6 +415,8 @@
 
             .image {
               aspect-ratio: 1;
+              overflow: hidden;
+              border-radius: 50%;
             }
           }
         }
@@ -460,6 +503,7 @@
           .Background {
             z-index: 1;
             opacity: .4;
+            @include GridFrame();
           }
 
           .Text {

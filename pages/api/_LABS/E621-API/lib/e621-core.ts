@@ -32,14 +32,18 @@ export const E621Internal = {
 
     if (!res.ok) {
       console.error(`E621 Fetch Error: ${res.status} ${res.statusText}`);
-      throw new Error(`E621 API Error: ${res.status}`);
+      const body = await res.json().catch(() => null);
+      const err = new Error("E621_FETCH_ERROR") as E621.FetchError;
+      err.statusCode = res.status;
+      err.upstreamBody = body;
+      throw err;
     }
 
     return res.json() as Promise<T>;
   }
 };
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function hendler(req: NextApiRequest, res: NextApiResponse) {
   res.json([
     "這邊 放E621核心用的 就這樣awa",
   ])
