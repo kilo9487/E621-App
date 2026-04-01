@@ -4786,7 +4786,7 @@ const windowsType = {
                   <br />
                   <div className={style["buttonList"]}>
                     <button kiase-sty="" disabled={isSame} onClick={() => setAuth()}>{t("setting.Account.e621.btn.update", usrIndx)}</button>
-                    <button kiase-sty="" disabled={isSame} onClick={() => setAuth(true)}>{t("setting.Account.e621.btn.update", usrIndx)}</button>
+                    <button kiase-sty="" disabled={isSame} onClick={() => setAuth(true)}>{t("setting.Account.e621.btn.restore", usrIndx)}</button>
                   </div>
                 </>
               }
