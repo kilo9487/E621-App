@@ -4771,14 +4771,14 @@ const windowsType = {
                   <input
                     type="text"
                     kiase-sty=""
-                    placeholder={t("setting.Account.e621.inp.key", usrIndx)}
+                    placeholder={t("setting.Account.e621.inp.name", usrIndx)}
                     onChange={e => setCurrentName(e.currentTarget.value)}
                     value={currentName}
                   />
                   <br />
                   <br />
                   <PasswordInput
-                    placeholder={t("setting.Account.e621.inp.name", usrIndx)}
+                    placeholder={t("setting.Account.e621.inp.key", usrIndx)}
                     onChange={e => setCurrentKey(e.currentTarget.value)}
                     value={currentKey}
                   />
